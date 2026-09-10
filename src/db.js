@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS moderation_actions (
   revoked_by_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS characters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  realm TEXT NOT NULL,
+  character_name TEXT NOT NULL,
+  character_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 function addColumnIfMissing(table, columnDef) {
@@ -108,6 +118,8 @@ addColumnIfMissing("users", "status TEXT NOT NULL DEFAULT 'available'");
 addColumnIfMissing("moderation_actions", "revoked_at TEXT");
 addColumnIfMissing("moderation_actions", "revoked_by TEXT");
 addColumnIfMissing("moderation_actions", "revoked_by_name TEXT");
+addColumnIfMissing("users", "characters_prompted INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("tickets", "character_ref_id INTEGER");
 
 const SETTING_DEFAULTS = {
   dm_on_reply: "1",
@@ -157,6 +169,39 @@ function isManagement(user) {
   return !!user && !!user.is_staff && MANAGEMENT_RANKS.includes(user.staff_rank);
 }
 
+const REALMS = ["Sovngarde", "Paarthurnax", "Moonshadow"];
+
+function listCharacters(userId) {
+  return db.prepare(`SELECT * FROM characters WHERE user_id = ? ORDER BY realm ASC, created_at ASC`).all(userId);
+}
+function listCharactersByRealm(userId, realm) {
+  return db
+    .prepare(`SELECT * FROM characters WHERE user_id = ? AND realm = ? ORDER BY created_at ASC`)
+    .all(userId, realm);
+}
+function addCharacter(userId, realm, characterName, characterId) {
+  const info = db
+    .prepare(`INSERT INTO characters (user_id, realm, character_name, character_id) VALUES (?, ?, ?, ?)`)
+    .run(userId, realm, characterName, characterId || null);
+  return db.prepare(`SELECT * FROM characters WHERE id = ?`).get(info.lastInsertRowid);
+}
+function updateCharacter(id, fields) {
+  const current = db.prepare(`SELECT * FROM characters WHERE id = ?`).get(id);
+  if (!current) return null;
+  const realm = fields.realm !== undefined ? fields.realm : current.realm;
+  const characterName = fields.character_name !== undefined ? fields.character_name : current.character_name;
+  const characterId = fields.character_id !== undefined ? fields.character_id : current.character_id;
+  db
+    .prepare(
+      `UPDATE characters SET realm = ?, character_name = ?, character_id = ?, updated_at = datetime('now') WHERE id = ?`
+    )
+    .run(realm, characterName, characterId || null, id);
+  return db.prepare(`SELECT * FROM characters WHERE id = ?`).get(id);
+}
+function removeCharacter(id) {
+  db.prepare(`DELETE FROM characters WHERE id = ?`).run(id);
+}
+
 const seedUser = db.prepare(`
   INSERT INTO users (id, username, avatar, is_staff, staff_rank)
   VALUES (@id, @username, @avatar, @is_staff, @staff_rank)
@@ -172,5 +217,11 @@ db.setSetting = setSetting;
 db.getModerationRoleOptions = getModerationRoleOptions;
 db.isManagement = isManagement;
 db.MANAGEMENT_RANKS = MANAGEMENT_RANKS;
+db.REALMS = REALMS;
+db.listCharacters = listCharacters;
+db.listCharactersByRealm = listCharactersByRealm;
+db.addCharacter = addCharacter;
+db.updateCharacter = updateCharacter;
+db.removeCharacter = removeCharacter;
 
 module.exports = db;

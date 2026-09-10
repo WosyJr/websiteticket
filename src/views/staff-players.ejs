@@ -46,8 +46,8 @@
                   <% if (p.is_staff) { %><span class="staff-badge" style="margin-top:2px;"><%= p.staff_rank || 'Staff' %></span><% } %>
                 </span>
               </span>
-              <span style="color:var(--text-dim);">
-                <% if (p.character_name || p.character_id) { %><%= p.character_name || '' %><%= p.character_id ? ' (' + p.character_id + ')' : '' %><% if (p.realm) { %> &middot; <%= p.realm %><% } %><% } else { %><span style="color:var(--text-faint);">&mdash;</span><% } %>
+              <span style="color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <% if (p.character_count > 0) { %><%= p.character_summary %><% } else { %><span style="color:var(--text-faint);">&mdash;</span><% } %>
               </span>
               <span><%= p.ticket_count %></span>
               <span><%= p.action_count > 0 ? p.action_count : '—' %></span>

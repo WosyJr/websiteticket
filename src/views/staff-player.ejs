@@ -32,15 +32,40 @@
           <div class="panel" style="margin-top:18px;">
             <div class="panel-title">Profile</div>
             <div class="kv"><span>Discord ID</span><span><%= player.id %></span></div>
-            <% if (player.character_name || player.character_id) { %>
-              <div class="kv"><span>Character</span><span><%= player.character_name || 'N/A' %><%= player.character_id ? ' (' + player.character_id + ')' : '' %></span></div>
-            <% } %>
-            <div class="kv"><span>Realm</span><span><%= player.realm || 'N/A' %></span></div>
             <div class="kv"><span>Joined</span><span><%= player.joined_at ? timeAgo(player.joined_at) : timeAgo(player.created_at + 'Z') %></span></div>
             <div class="kv"><span>Tickets opened</span><span><%= summary.ticketCount %></span></div>
             <% if (isRealDiscordId(player.id)) { %>
               <a class="discord-profile-link" href="https://discord.com/users/<%= player.id %>" target="_blank" rel="noopener">View Discord Profile &#8599;</a>
             <% } %>
+          </div>
+
+          <div class="panel" id="charPanel" style="margin-top:18px;" data-player-id="<%= player.id %>">
+            <div class="panel-title">Characters</div>
+            <% if (characters.length === 0) { %>
+              <div class="empty-state" style="padding:10px 0;font-size:12px;">No characters on file for this player.</div>
+            <% } %>
+            <% characters.forEach(function(c){ %>
+              <div class="char-edit-row" data-char-id="<%= c.id %>">
+                <select class="char-realm-input">
+                  <% realms.forEach(function(r){ %><option value="<%= r %>" <%= r === c.realm ? 'selected' : '' %>><%= r %></option><% }) %>
+                </select>
+                <input type="text" class="char-name-input" value="<%= c.character_name %>" placeholder="Character name">
+                <input type="text" class="char-id-input" value="<%= c.character_id || '' %>" placeholder="Character ID">
+                <div class="char-edit-actions">
+                  <button type="button" class="btn btn-outline char-save-btn">Save</button>
+                  <button type="button" class="char-remove-btn" title="Remove character">&times;</button>
+                </div>
+              </div>
+            <% }) %>
+            <div class="char-add-row">
+              <select id="charAddRealm">
+                <% realms.forEach(function(r){ %><option value="<%= r %>"><%= r %></option><% }) %>
+              </select>
+              <input type="text" id="charAddName" placeholder="Character name">
+              <input type="text" id="charAddId" placeholder="Character ID (optional)">
+              <button type="button" class="btn btn-primary" id="charAddBtn">Add</button>
+            </div>
+            <div id="charError" class="flash-error" style="margin-top:10px;" hidden></div>
           </div>
 
           <div class="notes-label" style="margin-top:22px;">Ticket History</div>
@@ -65,5 +90,104 @@
       </div>
     </div>
   </div>
+
+  <script>
+  (function () {
+    var panel = document.getElementById('charPanel');
+    if (!panel) return;
+    var playerId = panel.dataset.playerId;
+    var errorEl = document.getElementById('charError');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+    }
+
+    Array.prototype.slice.call(panel.querySelectorAll('.char-edit-row')).forEach(function (row) {
+      var charId = row.dataset.charId;
+      var saveBtn = row.querySelector('.char-save-btn');
+      var removeBtn = row.querySelector('.char-remove-btn');
+
+      saveBtn.addEventListener('click', function () {
+        var body = {
+          realm: row.querySelector('.char-realm-input').value,
+          character_name: row.querySelector('.char-name-input').value.trim(),
+          character_id: row.querySelector('.char-id-input').value.trim(),
+        };
+        saveBtn.disabled = true;
+        errorEl.hidden = true;
+        fetch('/api/players/characters/' + charId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (data) {
+            if (data && data.error) {
+              showError(data.error);
+              saveBtn.disabled = false;
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            showError('Could not reach the server -- check your connection and try again.');
+            saveBtn.disabled = false;
+          });
+      });
+
+      removeBtn.addEventListener('click', function () {
+        if (!window.confirm('Remove this character?')) return;
+        removeBtn.disabled = true;
+        fetch('/api/players/characters/' + charId + '/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (data) {
+            if (data && data.error) {
+              showError(data.error);
+              removeBtn.disabled = false;
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            showError('Could not reach the server -- check your connection and try again.');
+            removeBtn.disabled = false;
+          });
+      });
+    });
+
+    var addBtn = document.getElementById('charAddBtn');
+    addBtn.addEventListener('click', function () {
+      var body = {
+        realm: document.getElementById('charAddRealm').value,
+        character_name: document.getElementById('charAddName').value.trim(),
+        character_id: document.getElementById('charAddId').value.trim(),
+      };
+      addBtn.disabled = true;
+      errorEl.hidden = true;
+      fetch('/api/players/' + playerId + '/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (data) {
+          if (data && data.error) {
+            showError(data.error);
+            addBtn.disabled = false;
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          showError('Could not reach the server -- check your connection and try again.');
+          addBtn.disabled = false;
+        });
+    });
+  })();
+  </script>
 </body>
 </html>

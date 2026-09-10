@@ -32,11 +32,25 @@
           <% if (['general','player_report','item_restoration'].includes(type)) { %>
             <div class="field">
               <label>Realm</label>
-              <select name="realm">
+              <select name="realm" id="realmSelect">
                 <% realms.forEach(function(r){ %>
                   <option value="<%= r %>" <%= r === realm ? 'selected' : '' %>><%= r %></option>
                 <% }) %>
               </select>
+            </div>
+
+            <div class="field">
+              <label>Your Character</label>
+              <% if (user) { %>
+                <select name="character_choice" id="characterChoice">
+                  <option value="">No character selected</option>
+                  <option value="__new__">+ Add a new character</option>
+                </select>
+                <input type="text" name="new_character_name" id="newCharacterName" placeholder="Character name" style="margin-top:8px;" hidden>
+                <div class="hint">Showing characters for the selected realm. Manage all your characters anytime from <a href="/my-characters">My Characters</a>.</div>
+              <% } else { %>
+                <input type="text" disabled placeholder="Sign in to select your character">
+              <% } %>
             </div>
           <% } %>
 
@@ -59,5 +73,43 @@
       </div>
     </div>
   </div>
+
+  <script>
+  (function () {
+    var myCharacters = <%- JSON.stringify(typeof myCharacters !== 'undefined' ? myCharacters : []) %>;
+    var realmSelect = document.getElementById('realmSelect');
+    var characterChoice = document.getElementById('characterChoice');
+    var newCharacterName = document.getElementById('newCharacterName');
+    if (!characterChoice) return;
+
+    function renderOptions() {
+      var realm = realmSelect ? realmSelect.value : null;
+      var matches = myCharacters.filter(function (c) { return c.realm === realm; });
+      characterChoice.innerHTML = '';
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = 'No character selected';
+      characterChoice.appendChild(none);
+      matches.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.character_name;
+        characterChoice.appendChild(opt);
+      });
+      var addNew = document.createElement('option');
+      addNew.value = '__new__';
+      addNew.textContent = '+ Add a new character';
+      characterChoice.appendChild(addNew);
+      newCharacterName.hidden = true;
+      newCharacterName.value = '';
+    }
+
+    characterChoice.addEventListener('change', function () {
+      newCharacterName.hidden = characterChoice.value !== '__new__';
+    });
+    if (realmSelect) realmSelect.addEventListener('change', renderOptions);
+    renderOptions();
+  })();
+  </script>
 </body>
 </html>

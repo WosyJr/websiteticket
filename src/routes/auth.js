@@ -4,6 +4,16 @@ const { completeDiscordLogin } = require("../auth");
 
 const router = express.Router();
 
+function postLoginRedirect(user) {
+  if (user.is_staff) return "/staff";
+  const fresh = db.prepare(`SELECT characters_prompted FROM users WHERE id = ?`).get(user.id);
+  if (!fresh || !fresh.characters_prompted) {
+    db.prepare(`UPDATE users SET characters_prompted = 1 WHERE id = ?`).run(user.id);
+    return "/my-characters?welcome=1";
+  }
+  return "/my-tickets";
+}
+
 router.get("/discord/login", (req, res) => {
   req.session.loginFrom = req.query.from === "staff" ? "staff" : "player";
   if (!process.env.DISCORD_CLIENT_ID) {
@@ -32,7 +42,7 @@ router.get("/discord/callback", async (req, res) => {
   try {
     const user = await completeDiscordLogin(code);
     req.session.user = user;
-    res.redirect(user.is_staff ? "/staff" : "/my-tickets");
+    res.redirect(postLoginRedirect(user));
   } catch (err) {
     console.error("Discord login failed:", err);
     res.redirect(`${backLink}?error=discord_failed`);
@@ -48,14 +58,15 @@ router.post("/dev-login", (req, res) => {
   if (process.env.DEV_LOGIN !== "true") return res.status(404).send("Not found.");
   const as = req.body.as === "staff" ? "staff" : "player";
   const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(as === "staff" ? "dev-staff" : "dev-player");
-  req.session.user = row || {
+  const user = row || {
     id: as === "staff" ? "dev-staff" : "dev-player",
     username: as === "staff" ? "Wosy" : "TestPlayer",
     avatar: as === "staff" ? "W" : "T",
     is_staff: as === "staff" ? 1 : 0,
     staff_rank: as === "staff" ? "Senior Gamemaster" : null,
   };
-  res.redirect(as === "staff" ? "/staff" : "/my-tickets");
+  req.session.user = user;
+  res.redirect(postLoginRedirect(user));
 });
 
 router.post("/logout", (req, res) => {

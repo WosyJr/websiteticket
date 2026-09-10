@@ -1,9 +1,16 @@
 const express = require("express");
 const db = require("../db");
-const { requireStaff } = require("../auth");
+const { requireLogin, requireStaff } = require("../auth");
 const bot = require("../discordBot");
 
 const router = express.Router();
+
+function respond(req, res, payload, redirectTo) {
+  const wantsJson = (req.headers.accept || "").includes("application/json");
+  if (wantsJson) return res.json(payload);
+  res.redirect(redirectTo || req.body.redirect_to || "back");
+}
+
 const ACTION_TYPES = ["warn", "timeout", "kick", "ban", "role"];
 const ACTION_LABEL = { warn: "Warning", timeout: "Timeout", kick: "Kick", ban: "Ban", role: "Role" };
 const STATUS_VALUES = ["available", "busy", "away"];
@@ -18,11 +25,12 @@ router.get("/search", requireStaff, (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.json([]);
   let sql = `
-    SELECT id, username, avatar, is_staff, staff_rank, character_name, character_id
-    FROM users WHERE (username LIKE ? OR id = ? OR character_name LIKE ? OR character_id = ?)`;
+    SELECT DISTINCT u.id, u.username, u.avatar, u.is_staff, u.staff_rank
+    FROM users u LEFT JOIN characters c ON c.user_id = u.id
+    WHERE (u.username LIKE ? OR u.id = ? OR c.character_name LIKE ? OR c.character_id = ?)`;
   const params = [`%${q}%`, q, `%${q}%`, q];
-  if (req.query.staffOnly) sql += ` AND is_staff = 1`;
-  sql += ` ORDER BY username LIMIT 8`;
+  if (req.query.staffOnly) sql += ` AND u.is_staff = 1`;
+  sql += ` ORDER BY u.username LIMIT 8`;
   res.json(db.prepare(sql).all(...params));
 });
 
@@ -30,6 +38,63 @@ router.post("/me/status", requireStaff, (req, res) => {
   const status = STATUS_VALUES.includes(req.body.status) ? req.body.status : "available";
   db.prepare(`UPDATE users SET status = ? WHERE id = ?`).run(status, req.session.user.id);
   res.json({ ok: true, status });
+});
+
+router.post("/me/characters", requireLogin, (req, res) => {
+  const realm = (req.body.realm || "").trim();
+  const name = (req.body.character_name || "").trim();
+  if (!db.REALMS.includes(realm)) return res.status(400).json({ error: "Unknown realm." });
+  if (!name) return res.status(400).json({ error: "Character name is required." });
+  const character = db.addCharacter(req.session.user.id, realm, name, null);
+  respond(req, res, { ok: true, character }, "/my-characters");
+});
+
+router.post("/me/characters/:charId/remove", requireLogin, (req, res) => {
+  const character = db.prepare(`SELECT * FROM characters WHERE id = ?`).get(req.params.charId);
+  if (!character || character.user_id !== req.session.user.id) {
+    return res.status(404).json({ error: "Character not found." });
+  }
+  db.removeCharacter(character.id);
+  respond(req, res, { ok: true }, "/my-characters");
+});
+
+router.post("/:id/characters", requireStaff, (req, res) => {
+  const target = db.prepare(`SELECT id FROM users WHERE id = ?`).get(req.params.id);
+  if (!target) return res.status(404).json({ error: "Unknown player." });
+  const realm = (req.body.realm || "").trim();
+  const name = (req.body.character_name || "").trim();
+  const characterId = (req.body.character_id || "").trim();
+  if (!db.REALMS.includes(realm)) return res.status(400).json({ error: "Unknown realm." });
+  if (!name) return res.status(400).json({ error: "Character name is required." });
+  const character = db.addCharacter(target.id, realm, name, characterId || null);
+  respond(req, res, { ok: true, character }, `/staff/players/${target.id}`);
+});
+
+router.post("/characters/:charId", requireStaff, (req, res) => {
+  const character = db.prepare(`SELECT * FROM characters WHERE id = ?`).get(req.params.charId);
+  if (!character) return res.status(404).json({ error: "Character not found." });
+  const fields = {};
+  if (req.body.realm !== undefined) {
+    if (!db.REALMS.includes(req.body.realm)) return res.status(400).json({ error: "Unknown realm." });
+    fields.realm = req.body.realm;
+  }
+  if (req.body.character_name !== undefined) {
+    const name = req.body.character_name.trim();
+    if (!name) return res.status(400).json({ error: "Character name is required." });
+    fields.character_name = name;
+  }
+  if (req.body.character_id !== undefined) {
+    fields.character_id = req.body.character_id.trim() || null;
+  }
+  const updated = db.updateCharacter(character.id, fields);
+  respond(req, res, { ok: true, character: updated }, `/staff/players/${character.user_id}`);
+});
+
+router.post("/characters/:charId/remove", requireStaff, (req, res) => {
+  const character = db.prepare(`SELECT * FROM characters WHERE id = ?`).get(req.params.charId);
+  if (!character) return res.status(404).json({ error: "Character not found." });
+  db.removeCharacter(character.id);
+  respond(req, res, { ok: true }, `/staff/players/${character.user_id}`);
 });
 
 router.post("/moderation/:actionId/revoke", requireStaff, async (req, res) => {

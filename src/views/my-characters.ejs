@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <title>My Characters | Keizaal Online</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="player-page">
+    <%- include('partials/player-nav', { active: 'characters', user: user }) %>
+
+    <div class="form-wrap">
+      <div class="crumb" style="margin-bottom:20px;"><a href="/">Home</a> / My Characters</div>
+
+      <% if (welcome) { %>
+        <div class="flash-success">
+          Welcome! Add the characters you play on each realm so staff can find your ticket and moderation
+          history when you need help. You can always come back and edit this later.
+          <a href="/my-tickets">Skip for now &rarr;</a>
+        </div>
+      <% } %>
+
+      <div class="form-card" style="padding:0 22px 20px;">
+        <div class="form-card-head">
+          <div class="form-card-title">My Characters</div>
+        </div>
+
+        <% realms.forEach(function(realm){ %>
+          <div class="field">
+            <label><%= realm %></label>
+            <% var realmChars = characters.filter(function(c){ return c.realm === realm; }); %>
+            <% if (realmChars.length === 0) { %>
+              <div class="hint" style="margin-bottom:8px;">No characters added for this realm yet.</div>
+            <% } %>
+            <% realmChars.forEach(function(c){ %>
+              <div class="character-row">
+                <span class="character-row-name"><%= c.character_name %></span>
+                <% if (c.character_id) { %><span class="character-row-id">ID: <%= c.character_id %></span><% } %>
+                <form method="post" action="/api/players/me/characters/<%= c.id %>/remove" class="character-row-remove-form">
+                  <button type="submit" class="character-row-remove">Remove</button>
+                </form>
+              </div>
+            <% }) %>
+            <form method="post" action="/api/players/me/characters" class="row-inline" style="margin-top:8px;">
+              <input type="hidden" name="realm" value="<%= realm %>">
+              <input type="text" name="character_name" placeholder="Add a character name" required>
+              <button class="btn btn-outline" type="submit">Add</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

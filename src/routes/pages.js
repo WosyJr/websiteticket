@@ -6,7 +6,7 @@ const bot = require("../discordBot");
 const richtext = require("../lib/richtext");
 
 const router = express.Router();
-const REALMS = ["Sovngarde", "Paarthurnax", "Moonshadow"];
+const REALMS = db.REALMS;
 const KB_REALMS = ["general", "sovngarde", "paarthurnax", "moonshadow"];
 
 function ticketListQuery({ baseWhere = "1=1", baseParams = [], realm, view, q, currentUserId }) {
@@ -94,12 +94,26 @@ router.get("/player-login", (req, res) => {
 router.get("/support/new", (req, res) => {
   const type = QUESTIONS_BY_TYPE[req.query.type] ? req.query.type : "player_report";
   const realm = REALMS.includes(req.query.realm) ? req.query.realm : REALMS[0];
+  const myCharacters = req.session.user
+    ? db.listCharacters(req.session.user.id).map((c) => ({ id: c.id, realm: c.realm, character_name: c.character_name }))
+    : [];
   res.render("new-ticket", {
     user: req.session.user || null,
     type,
     realm,
     realms: REALMS,
     questions: QUESTIONS_BY_TYPE[type],
+    myCharacters,
+  });
+});
+
+router.get("/my-characters", requireLogin, (req, res) => {
+  const characters = db.listCharacters(req.session.user.id);
+  res.render("my-characters", {
+    user: req.session.user,
+    characters,
+    realms: REALMS,
+    welcome: req.query.welcome === "1",
   });
 });
 
@@ -199,11 +213,13 @@ router.get("/staff/players", requireStaff, (req, res) => {
   let sql = `
     SELECT u.*,
       (SELECT COUNT(*) FROM tickets t WHERE t.reporter_id = u.id) as ticket_count,
-      (SELECT COUNT(*) FROM moderation_actions m WHERE m.target_user_id = u.id AND m.revoked_at IS NULL) as action_count
+      (SELECT COUNT(*) FROM moderation_actions m WHERE m.target_user_id = u.id AND m.revoked_at IS NULL) as action_count,
+      (SELECT COUNT(*) FROM characters c WHERE c.user_id = u.id) as character_count,
+      (SELECT GROUP_CONCAT(c.character_name || ' (' || c.realm || ')', ', ') FROM characters c WHERE c.user_id = u.id) as character_summary
     FROM users u WHERE 1=1`;
   const params = [];
   if (q) {
-    sql += ` AND (u.username LIKE ? OR u.id = ? OR u.character_name LIKE ? OR u.character_id = ?)`;
+    sql += ` AND (u.username LIKE ? OR u.id = ? OR u.id IN (SELECT user_id FROM characters WHERE character_name LIKE ? OR character_id = ?))`;
     params.push(`%${q}%`, q, `%${q}%`, q);
   }
   sql += ` ORDER BY u.created_at DESC`;
@@ -220,7 +236,8 @@ router.get("/staff/players/:id", requireStaff, (req, res) => {
     .prepare(`SELECT * FROM tickets WHERE reporter_id = ? ORDER BY updated_at DESC`)
     .all(player.id);
   const roleOptions = db.getModerationRoleOptions();
-  res.render("staff-player", { user: req.session.user, player, summary, tickets, roleOptions });
+  const characters = db.listCharacters(player.id);
+  res.render("staff-player", { user: req.session.user, player, summary, tickets, roleOptions, characters, realms: REALMS });
 });
 
 const KB_SORTS = {

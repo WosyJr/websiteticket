@@ -22,8 +22,6 @@ const QUESTIONS_BY_TYPE = {
   item_restoration: [
     "Please confirm the server you are requesting a restoration for.",
     "Link videos or screenshots that prove you had the items requested.",
-    "What is your character name?",
-    "What is your character ID?",
     "What is the date / time you lost the item? Include time zone.",
     "What do you need restored?",
     "Where was the item removed from?",
@@ -78,11 +76,13 @@ function categoryLabel(type, realm) {
 
 const SUBJECT_ANSWER_INDEX = {
   player_report: 3,
-  item_restoration: 5,
+  item_restoration: 3,
   general: 1,
   staff_report: 1,
   bug_report: 1,
 };
+
+const CHARACTER_REALM_TYPES = ["player_report", "item_restoration", "general"];
 
 function truncate(str, max) {
   const s = (str || "").trim();
@@ -104,26 +104,35 @@ const insertTicket = db.prepare(`
   INSERT INTO tickets (type, realm, category_label, subject, reporter_id, form_json)
   VALUES (@type, @realm, @category_label, @subject, @reporter_id, @form_json)
 `);
-const updateOwnCharacter = db.prepare(
-  `UPDATE users SET character_name = ?, character_id = ?, realm = ? WHERE id = ?`
-);
 
-function captureOwnCharacter(type, form, realm, reporterId) {
-  if (type !== "item_restoration") return;
-  const name = (form[2] && form[2].answer || "").trim();
-  const id = (form[3] && form[3].answer || "").trim();
-  if (!name && !id) return;
-  updateOwnCharacter.run(name || null, id || null, realm || null, reporterId);
+function resolveSubmitterCharacter(userId, realm, choice, newName) {
+  if (!realm || !db.REALMS.includes(realm)) return null;
+  if (choice && choice !== "__new__") {
+    const existing = db.prepare(`SELECT * FROM characters WHERE id = ? AND user_id = ?`).get(choice, userId);
+    if (existing) return existing;
+  }
+  const name = (newName || "").trim();
+  if (!name) return null;
+  return db.addCharacter(userId, realm, name, null);
 }
 
 function resolveReportedPlayer(ticket) {
   if (ticket.type !== "player_report") return null;
   const name = (ticket.form[1] && ticket.form[1].answer || "").trim();
   const charId = (ticket.form[2] && ticket.form[2].answer || "").trim();
-  let user = null;
-  if (charId) user = db.prepare(`SELECT * FROM users WHERE character_id = ? COLLATE NOCASE`).get(charId);
-  if (!user && name) user = db.prepare(`SELECT * FROM users WHERE character_name = ? COLLATE NOCASE`).get(name);
-  return { typedName: name || null, typedId: charId || null, user: user || null };
+  let character = null;
+  if (charId) {
+    character = db
+      .prepare(`SELECT * FROM characters WHERE character_id = ? COLLATE NOCASE AND realm = ?`)
+      .get(charId, ticket.realm);
+  }
+  if (!character && name) {
+    character = db
+      .prepare(`SELECT * FROM characters WHERE character_name = ? COLLATE NOCASE AND realm = ?`)
+      .get(name, ticket.realm);
+  }
+  const user = character ? db.prepare(`SELECT * FROM users WHERE id = ?`).get(character.user_id) : null;
+  return { typedName: name || null, typedId: charId || null, character: character || null, user: user || null };
 }
 
 const insertParticipant = db.prepare(`
@@ -162,11 +171,14 @@ function getTicketFull(id) {
        WHERE m.ticket_id = ? ORDER BY m.id ASC`
     )
     .all(id);
+  ticket.character = ticket.character_ref_id
+    ? db.prepare(`SELECT * FROM characters WHERE id = ?`).get(ticket.character_ref_id)
+    : null;
   return ticket;
 }
 
 router.post("/", requireLogin, (req, res) => {
-  const { type, realm, answers, subject: explicitSubject } = req.body;
+  const { type, realm, answers, subject: explicitSubject, character_choice, new_character_name } = req.body;
   if (!QUESTIONS_BY_TYPE[type]) return res.status(400).json({ error: "Unknown ticket type." });
   const questions = QUESTIONS_BY_TYPE[type];
   const form = questions.map((q, i) => ({ question: q, answer: (answers && answers[i]) || "" }));
@@ -181,7 +193,14 @@ router.post("/", requireLogin, (req, res) => {
     form_json: JSON.stringify(form),
   });
   insertParticipant.run(info.lastInsertRowid, req.session.user.id, "owner");
-  captureOwnCharacter(type, form, realm, req.session.user.id);
+
+  if (CHARACTER_REALM_TYPES.includes(type)) {
+    const character = resolveSubmitterCharacter(req.session.user.id, realm, character_choice, new_character_name);
+    if (character) {
+      db.prepare(`UPDATE tickets SET character_ref_id = ? WHERE id = ?`).run(character.id, info.lastInsertRowid);
+    }
+  }
+
   insertMessage.run(
     info.lastInsertRowid,
     req.session.user.id,
