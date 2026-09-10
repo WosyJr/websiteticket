@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <title><%= player.username %> | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'players', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <div class="crumb"><a href="/staff/players">Players</a> / <b><%= player.username %></b></div>
+      </div>
+
+      <div class="split">
+        <div class="thread-col">
+          <div class="thread-head">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div class="avatar" style="width:52px;height:52px;font-size:19px;"><%= (player.avatar||'?').startsWith('http') ? '' : (player.avatar||player.username[0]).toUpperCase() %><% if ((player.avatar||'').startsWith('http')) { %><img src="<%= player.avatar %>" alt=""><% } %></div>
+              <div>
+                <h1 style="margin-bottom:4px;"><%= player.username %></h1>
+                <% if (player.is_staff) { %><span class="staff-badge"><%= player.staff_rank || 'Staff' %></span><% } else { %><span class="player-badge">Player</span><% } %>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:18px;">
+            <div class="panel-title">Profile</div>
+            <div class="kv"><span>Discord ID</span><span><%= player.id %></span></div>
+            <% if (player.character_name || player.character_id) { %>
+              <div class="kv"><span>Character</span><span><%= player.character_name || 'N/A' %><%= player.character_id ? ' (' + player.character_id + ')' : '' %></span></div>
+            <% } %>
+            <div class="kv"><span>Realm</span><span><%= player.realm || 'N/A' %></span></div>
+            <div class="kv"><span>Joined</span><span><%= player.joined_at ? timeAgo(player.joined_at) : timeAgo(player.created_at + 'Z') %></span></div>
+            <div class="kv"><span>Tickets opened</span><span><%= summary.ticketCount %></span></div>
+            <% if (isRealDiscordId(player.id)) { %>
+              <a class="discord-profile-link" href="https://discord.com/users/<%= player.id %>" target="_blank" rel="noopener">View Discord Profile &#8599;</a>
+            <% } %>
+          </div>
+
+          <div class="notes-label" style="margin-top:22px;">Ticket History</div>
+          <% if (tickets.length === 0) { %>
+            <div class="empty-state">No tickets from this player yet.</div>
+          <% } %>
+          <% tickets.forEach(function(t){ %>
+            <a href="/staff/tickets/<%= t.id %>" class="mod-log-item" style="display:block;color:inherit;">
+              <div class="mod-log-top">
+                <span class="status <%= t.status %>"><span class="dot"></span><%= t.status.charAt(0).toUpperCase()+t.status.slice(1) %></span>
+                <span class="mod-log-detail">#<%= t.id %> &middot; <%= t.category_label %></span>
+              </div>
+              <div class="mod-log-reason"><%= t.subject %></div>
+              <div class="mod-log-meta">Updated <%= timeAgo(t.updated_at + 'Z') %></div>
+            </a>
+          <% }) %>
+        </div>
+
+        <div class="side-col">
+          <%- include('partials/moderation-panel', { target: player, targetSummary: summary, roleOptions: roleOptions }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

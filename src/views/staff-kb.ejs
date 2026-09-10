@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <title>Knowledge Base | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'kb', user: user }) %>
+
+    <div class="main">
+      <div class="topbar"><h1 class="page-title">Knowledge Base</h1></div>
+
+      <div class="kb-tabs">
+        <a class="kb-tab <%= realm === 'general' ? 'active' : '' %>" href="/staff/kb?realm=general">General Knowledge</a>
+        <a class="kb-tab <%= realm === 'sovngarde' ? 'active' : '' %>" href="/staff/kb?realm=sovngarde">Sovngarde</a>
+        <a class="kb-tab <%= realm === 'paarthurnax' ? 'active' : '' %>" href="/staff/kb?realm=paarthurnax">Paarthurnax</a>
+        <a class="kb-tab <%= realm === 'moonshadow' ? 'active' : '' %>" href="/staff/kb?realm=moonshadow">Moonshadow</a>
+      </div>
+
+      <div class="content" style="padding-top:18px;">
+        <div class="kb-toolbar">
+          <details class="kb-sort">
+            <summary class="btn btn-outline">Sort &amp; View</summary>
+            <div class="kb-sort-menu">
+              <a class="<%= sort === 'pinned' ? 'active' : '' %>" href="/staff/kb?realm=<%= realm %>&sort=pinned">Pinned first</a>
+              <a class="<%= sort === 'newest' ? 'active' : '' %>" href="/staff/kb?realm=<%= realm %>&sort=newest">Newest</a>
+              <a class="<%= sort === 'oldest' ? 'active' : '' %>" href="/staff/kb?realm=<%= realm %>&sort=oldest">Oldest</a>
+              <a class="<%= sort === 'comments' ? 'active' : '' %>" href="/staff/kb?realm=<%= realm %>&sort=comments">Most comments</a>
+            </div>
+          </details>
+          <div class="tb-spacer"></div>
+          <details class="kb-new">
+            <summary class="btn btn-primary">+ New Article</summary>
+            <form class="kb-new-form" method="post" action="/api/kb/<%= realm %>">
+              <input type="text" name="title" placeholder="Article title" required>
+              <textarea name="body" placeholder="Write the article... use [link text](https://...) to add a clickable link"></textarea>
+              <div><button class="btn btn-primary" type="submit">Post Article</button></div>
+            </form>
+          </details>
+        </div>
+
+        <div class="kb-list">
+          <% if (articles.length === 0) { %>
+            <div class="empty-state">No articles in <%= realm %> yet. Add the first one above.</div>
+          <% } %>
+          <% articles.forEach(function(a){ %>
+            <div class="kb-card" data-href="/staff/kb/article/<%= a.id %>">
+              <% if (a.pinned) { %>
+                <div class="kb-pin"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 9.5 4.5 8 9l-5 1 4 4-1.5 6L12 17l6.5 3L17 14l4-4-5-1-1.5-4.5Z"/></svg></div>
+              <% } %>
+              <div class="kb-title"><%= a.title %></div>
+              <div class="kb-meta-line"><span class="kb-author"><%= a.author_name %></span> &mdash; <%- a.previewHtml %></div>
+              <div class="kb-footer">
+                <span class="kb-comment-count">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <%= a.comment_count %>
+                </span>
+                <% if (a.new_count > 0) { %>
+                  <span class="kb-new-badge"><%= a.new_count %> New</span>
+                <% } %>
+                <span class="kb-updated"><%= new Date(a.created_at + 'Z').toLocaleString() %></span>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.kb-card').forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('a')) return;
+        window.location.href = card.dataset.href;
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <title>My Tickets | Keizaal Online</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="player-page">
+    <%- include('partials/player-nav', { active: 'home', user: user }) %>
+
+    <div class="hero">
+      <div class="crumb" style="margin-bottom:14px;"><a href="/">Home</a> / My Tickets</div>
+      <h1>My Tickets</h1>
+      <p>Everything you've opened with Keizaal Online staff, and anything you've been added to.</p>
+    </div>
+
+    <div class="section" style="padding-bottom:60px;">
+      <% if (tickets.length === 0) { %>
+        <div class="empty-state">You haven't opened any tickets yet. <a href="/#support">Open one from the support hub</a>.</div>
+      <% } else { %>
+        <div class="table-card">
+          <% tickets.forEach(function(t){ %>
+            <a class="row body" style="grid-template-columns:120px 1fr 140px 120px;" href="/my-tickets/<%= t.id %>">
+              <span class="status <%= t.status %>"><span class="dot"></span><%= t.status.charAt(0).toUpperCase()+t.status.slice(1) %></span>
+              <span class="subject"><%= t.subject %></span>
+              <span class="tag"><%= t.category_label %></span>
+              <span class="updated"><%= new Date(t.updated_at + 'Z').toLocaleString() %></span>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

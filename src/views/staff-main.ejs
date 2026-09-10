@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+  <title>Support Tickets | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', {
+      active: filters.view === 'open' ? 'tickets-open' : filters.view === 'closed' ? 'tickets-closed' : 'tickets',
+      user: user
+    }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <h1 class="page-title">Support Tickets</h1>
+        <form class="search-form" method="get" action="/staff/tickets">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" name="q" placeholder="Search tickets or reporters" value="<%= filters.q || '' %>">
+          <% if (filters.realm) { %><input type="hidden" name="realm" value="<%= filters.realm %>"><% } %>
+          <% if (filters.view) { %><input type="hidden" name="view" value="<%= filters.view %>"><% } %>
+        </form>
+        <div class="tb-spacer"></div>
+        <div class="view-pills">
+          <a class="view-pill <%= !filters.view || filters.view === 'all' ? 'active' : '' %>" href="/staff/tickets?view=all<%= filters.realm ? '&realm='+filters.realm : '' %>">All</a>
+          <a class="view-pill <%= filters.view === 'unclaimed' ? 'active' : '' %>" href="/staff/tickets?view=unclaimed<%= filters.realm ? '&realm='+filters.realm : '' %>">Unclaimed</a>
+          <a class="view-pill <%= filters.view === 'mine' ? 'active' : '' %>" href="/staff/tickets?view=mine<%= filters.realm ? '&realm='+filters.realm : '' %>">Mine</a>
+          <a class="view-pill <%= filters.view === 'closed' ? 'active' : '' %>" href="/staff/tickets?view=closed<%= filters.realm ? '&realm='+filters.realm : '' %>">Closed</a>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="stats">
+          <div class="stat-card"><div class="stat-label">Open Tickets</div><div class="stat-value red"><%= counts.open_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Unclaimed</div><div class="stat-value gold"><%= counts.unclaimed_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Closed Today</div><div class="stat-value green"><%= counts.closed_today || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Showing</div><div class="stat-value"><%= tickets.length %></div></div>
+        </div>
+
+        <div class="toolbar2">
+          <span class="toolbar-label">Realm</span>
+          <a class="realm-chip <%= !filters.realm ? 'active' : '' %>" href="/staff/tickets?<%= filters.view ? 'view='+filters.view+'&' : '' %><%= filters.q ? 'q='+encodeURIComponent(filters.q) : '' %>">All Realms</a>
+          <a class="realm-chip sovngarde <%= filters.realm === 'Sovngarde' ? 'active' : '' %>" href="/staff/tickets?realm=Sovngarde<%= filters.view ? '&view='+filters.view : '' %>"><span class="dot"></span>Sovngarde</a>
+          <a class="realm-chip paarthurnax <%= filters.realm === 'Paarthurnax' ? 'active' : '' %>" href="/staff/tickets?realm=Paarthurnax<%= filters.view ? '&view='+filters.view : '' %>"><span class="dot"></span>Paarthurnax</a>
+          <a class="realm-chip moonshadow <%= filters.realm === 'Moonshadow' ? 'active' : '' %>" href="/staff/tickets?realm=Moonshadow<%= filters.view ? '&view='+filters.view : '' %>"><span class="dot"></span>Moonshadow</a>
+        </div>
+
+        <div class="bulk-bar" id="bulkBar" hidden>
+          <span id="bulkCount">0 tickets selected</span>
+          <div class="tb-spacer"></div>
+          <button type="button" class="btn btn-primary" id="bulkClaim">Claim</button>
+          <button type="button" class="btn btn-outline" id="bulkClose">Close</button>
+          <button type="button" class="btn btn-outline" id="bulkAssign">Assign to&hellip;</button>
+          <button type="button" class="btn btn-outline" id="bulkClear">Clear</button>
+        </div>
+
+        <div class="table-card">
+          <div class="row head">
+            <span class="row-check"><input type="checkbox" id="checkAll"></span>
+            <div>Status</div><div>Category</div><div>Realm</div><div>Subject</div><div>Reporter</div><div>Assigned</div><div>Updated</div>
+          </div>
+          <% if (tickets.length === 0) { %>
+            <div class="empty-state">No tickets match these filters.</div>
+          <% } %>
+          <% tickets.forEach(function(t){ %>
+            <div class="row body" data-href="/staff/tickets/<%= t.id %>">
+              <span class="row-check"><input type="checkbox" class="ticket-check" value="<%= t.id %>" <%= t.status === 'closed' ? 'disabled' : '' %>></span>
+              <span class="status <%= t.status %>"><span class="dot"></span><%= t.status.charAt(0).toUpperCase()+t.status.slice(1) %></span>
+              <span class="tag"><%= t.category_label %></span>
+              <% if (t.realm) { %>
+                <span class="realm <%= t.realm.toLowerCase() %>"><span class="dot"></span><%= t.realm %></span>
+              <% } else { %><span style="color:var(--text-faint)">&mdash;</span><% } %>
+              <span class="subject-cell"><span class="subject"><%= t.subject %></span></span>
+              <span class="person"><div class="avatar"><%= (t.reporter_name||'?')[0].toUpperCase() %></div><span class="person-name"><%= t.reporter_name %></span></span>
+              <% if (t.claimer_name) { %>
+                <span class="person"><div class="avatar"><%= t.claimer_name[0].toUpperCase() %></div><span class="person-name"><%= t.claimer_name %></span></span>
+              <% } else { %><span class="unclaimed">Unclaimed</span><% } %>
+              <span class="updated"><%= new Date(t.updated_at + 'Z').toLocaleString() %></span>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Rows are plain divs (not links) so a checkbox can live inside one without triggering
+    // navigation -- clicking anywhere else on the row still opens the ticket.
+    document.querySelectorAll('.row.body').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('.row-check')) return;
+        window.location.href = row.dataset.href;
+      });
+    });
+
+    var checkAll = document.getElementById('checkAll');
+    var checks = Array.prototype.slice.call(document.querySelectorAll('.ticket-check'));
+    var bulkBar = document.getElementById('bulkBar');
+    var bulkCount = document.getElementById('bulkCount');
+
+    function selectedIds() {
+      return checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+    }
+    function refresh() {
+      var ids = selectedIds();
+      bulkBar.hidden = ids.length === 0;
+      bulkCount.textContent = ids.length + (ids.length === 1 ? ' ticket selected' : ' tickets selected');
+    }
+    checks.forEach(function (c) { c.addEventListener('change', refresh); });
+    if (checkAll) {
+      checkAll.addEventListener('change', function () {
+        checks.forEach(function (c) { if (!c.disabled) c.checked = checkAll.checked; });
+        refresh();
+      });
+    }
+
+    function bulkPost(url, extra) {
+      var ids = selectedIds();
+      if (!ids.length) return;
+      var body = Object.assign({ ids: ids }, extra || {});
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (data) {
+          if (data && data.error) { alert(data.error); return; }
+          window.location.reload();
+        })
+        .catch(function () { alert('Something went wrong -- try again.'); });
+    }
+
+    var bulkClaimBtn = document.getElementById('bulkClaim');
+    var bulkCloseBtn = document.getElementById('bulkClose');
+    var bulkAssignBtn = document.getElementById('bulkAssign');
+    var bulkClearBtn = document.getElementById('bulkClear');
+    if (bulkClaimBtn) bulkClaimBtn.addEventListener('click', function () { bulkPost('/api/tickets/bulk-claim'); });
+    if (bulkCloseBtn) bulkCloseBtn.addEventListener('click', function () {
+      var reason = prompt('Reason for closing these tickets (optional):') || '';
+      bulkPost('/api/tickets/bulk-close', { reason: reason });
+    });
+    if (bulkAssignBtn) bulkAssignBtn.addEventListener('click', function () {
+      var staff = prompt('Assign to which staff member? (exact username or Discord ID)');
+      if (!staff) return;
+      bulkPost('/api/tickets/bulk-assign', { staff: staff });
+    });
+    if (bulkClearBtn) bulkClearBtn.addEventListener('click', function () {
+      checks.forEach(function (c) { c.checked = false; });
+      if (checkAll) checkAll.checked = false;
+      refresh();
+    });
+  </script>
+</body>
+</html>

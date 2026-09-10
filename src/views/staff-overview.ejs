@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <title>Overview | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'overview', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <h1 class="page-title">Overview</h1>
+      </div>
+
+      <div class="content">
+        <div class="stats">
+          <div class="stat-card"><div class="stat-label">Open Tickets</div><div class="stat-value red"><%= counts.open_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Unclaimed</div><div class="stat-value gold"><%= counts.unclaimed_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Closed Today</div><div class="stat-value green"><%= counts.closed_today || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Open Applications</div><div class="stat-value"><%= appCounts.open_count || 0 %></div></div>
+        </div>
+
+        <div class="ov-grid">
+          <div class="panel">
+            <div class="panel-title">Recent Activity</div>
+            <% if (recentTickets.length === 0) { %>
+              <div class="empty-state" style="padding:20px 0;">Nothing yet -- new tickets will show up here.</div>
+            <% } %>
+            <% recentTickets.forEach(function(t){ %>
+              <a class="ov-item" href="/staff/tickets/<%= t.id %>">
+                <span class="status <%= t.status %>"><span class="dot"></span><%= t.status.charAt(0).toUpperCase()+t.status.slice(1) %></span>
+                <span class="ov-item-subject"><%= t.subject %></span>
+                <span class="ov-item-meta"><%= t.reporter_name %> &middot; <%= new Date(t.updated_at + 'Z').toLocaleString() %></span>
+              </a>
+            <% }) %>
+            <a class="ov-more" href="/staff/tickets">View all tickets &rarr;</a>
+          </div>
+
+          <div class="ov-side">
+            <div class="panel">
+              <div class="panel-title">Needs a Claim</div>
+              <% if (unclaimedTickets.length === 0) { %>
+                <div class="empty-state" style="padding:12px 0;">Nothing unclaimed right now.</div>
+              <% } %>
+              <% unclaimedTickets.forEach(function(t){ %>
+                <a class="ov-item" href="/staff/tickets/<%= t.id %>">
+                  <span class="ov-item-subject"><%= t.subject %></span>
+                  <span class="ov-item-meta"><%= t.category_label %></span>
+                </a>
+              <% }) %>
+              <a class="ov-more" href="/staff/tickets?view=unclaimed">View all unclaimed &rarr;</a>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">Your Open Tickets</div>
+              <% if (myTickets.length === 0) { %>
+                <div class="empty-state" style="padding:12px 0;">Nothing claimed by you right now.</div>
+              <% } %>
+              <% myTickets.forEach(function(t){ %>
+                <a class="ov-item" href="/staff/tickets/<%= t.id %>">
+                  <span class="ov-item-subject"><%= t.subject %></span>
+                  <span class="ov-item-meta"><%= t.category_label %></span>
+                </a>
+              <% }) %>
+              <a class="ov-more" href="/staff/tickets?view=mine">View all of mine &rarr;</a>
+            </div>
+
+            <% if ((appCounts.open_count || 0) > 0) { %>
+              <div class="panel">
+                <div class="panel-title">Applications</div>
+                <div class="ov-item-meta" style="margin-bottom:10px;"><%= appCounts.open_count %> open application<%= appCounts.open_count === 1 ? '' : 's' %> waiting on a review.</div>
+                <a class="ov-more" href="/staff/applications">Review applications &rarr;</a>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

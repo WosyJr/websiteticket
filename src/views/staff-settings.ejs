@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <title>Settings | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'settings', user: user }) %>
+
+    <div class="main">
+      <div class="topbar"><h1 class="page-title">Settings</h1></div>
+
+      <div class="settings-wrap">
+        <% if (saved) { %>
+          <div class="flash-success">Settings saved.</div>
+        <% } %>
+
+        <form method="post" action="/staff/settings">
+          <div class="settings-section">
+            <div class="settings-section-title">Player Discord notifications</div>
+            <div class="settings-section-desc">The bot DMs the player who opened a ticket when staff take one of these actions on it.</div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-row-label">DM player when staff reply</div>
+                <div class="toggle-row-hint">Sent when a staff member posts a player-visible response on their ticket.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" name="dm_on_reply" <%= settings.dm_on_reply === '1' ? 'checked' : '' %>>
+                <span class="track"></span><span class="thumb"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-row-label">DM player when ticket is closed / resolved</div>
+                <div class="toggle-row-hint">Sent when a ticket is closed, or an item restoration is approved/denied.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" name="dm_on_close" <%= settings.dm_on_close === '1' ? 'checked' : '' %>>
+                <span class="track"></span><span class="thumb"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Ticket activity log</div>
+            <div class="settings-section-desc">Posts a message to a Discord channel whenever a ticket is opened, claimed, closed, resolved, or a moderation action is taken -- and whenever a player is added to a ticket. Replies are deliberately left out (too high-volume for a shared channel) and only ever DM the player directly, above.</div>
+
+            <div class="toggle-row" style="border-top:none;padding-top:0;">
+              <div>
+                <div class="toggle-row-label">Log ticket activity to a channel</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" name="log_enabled" <%= settings.log_enabled === '1' ? 'checked' : '' %>>
+                <span class="track"></span><span class="thumb"></span>
+              </label>
+            </div>
+
+            <div class="field settings-channel-field" style="margin-bottom:0;">
+              <label>Log channel ID</label>
+              <input type="text" name="log_channel_id" value="<%= settings.log_channel_id %>" placeholder="Discord channel ID" inputmode="numeric">
+              <div class="hint">Right-click a channel in Discord (with Developer Mode on) and choose "Copy Channel ID".</div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Assignable roles</div>
+            <div class="settings-section-desc">Roles staff can grant a player from the Moderation Actions panel's "Role" action (e.g. a Muted or Restricted role). One per line, as <code>Label:RoleID</code>. Right-click a role in Server Settings &rarr; Roles (with Developer Mode on) to copy its ID.</div>
+            <div class="field" style="margin-bottom:0;">
+              <textarea name="moderation_role_map" placeholder="Muted:123456789012345678&#10;Event Winner:234567890123456789" style="width:100%;min-height:90px;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font-family:'Manrope';font-size:12.5px;outline:none;resize:vertical;"><%= settings.moderation_role_map %></textarea>
+            </div>
+          </div>
+
+          <div>
+            <button class="btn btn-primary" type="submit">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<div class="sidebar">
+  <div class="brand">
+    <div>
+      <div class="brand-word">Keizaal</div>
+      <div class="brand-sub">Staff Portal</div>
+    </div>
+  </div>
+  <div class="nav">
+    <a class="nav-item <%= active === 'overview' ? 'active' : '' %>" href="/staff">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Overview
+    </a>
+    <a class="nav-item <%= active === 'tickets' || active === 'tickets-open' || active === 'tickets-closed' ? 'active' : '' %>" href="/staff/tickets">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8Z"/></svg>
+      Tickets
+    </a>
+    <a class="nav-subitem <%= active === 'tickets-open' ? 'active' : '' %>" href="/staff/tickets?view=open">Open</a>
+    <a class="nav-subitem <%= active === 'tickets-closed' ? 'active' : '' %>" href="/staff/tickets?view=closed">Closed</a>
+    <a class="nav-item <%= active === 'applications' ? 'active' : '' %>" href="/staff/applications">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+      Applications
+      <% if (typeof openApplicationsCount !== 'undefined' && openApplicationsCount > 0) { %>
+        <span class="nav-badge"><%= openApplicationsCount %></span>
+      <% } %>
+    </a>
+    <a class="nav-item <%= active === 'kb' ? 'active' : '' %>" href="/staff/kb">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v18H6.5A2.5 2.5 0 0 1 4 18.5v-13Z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H12v18h5.5a2.5 2.5 0 0 0 2.5-2.5v-13Z"/></svg>
+      Knowledge Base
+    </a>
+    <a class="nav-item <%= active === 'players' ? 'active' : '' %>" href="/staff/players">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Players
+    </a>
+    <a class="nav-item <%= active === 'settings' ? 'active' : '' %>" href="/staff/settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      Settings
+    </a>
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="profile">
+    <div class="avatar"><%= (user.avatar || '?').startsWith('http') ? '' : user.avatar %><% if ((user.avatar||'').startsWith('http')) { %><img src="<%= user.avatar %>" alt=""><% } %></div>
+    <div>
+      <div class="profile-name"><%= user.username %></div>
+      <span class="rank-pill"><%= user.staff_rank || 'Staff' %></span>
+    </div>
+  </div>
+  <form class="logout-form" method="post" action="/auth/logout" style="margin-top:8px;">
+    <button class="logout-btn" type="submit">Sign out</button>
+  </form>
+</div>

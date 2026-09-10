@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <title>Sign in | Keizaal Online</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-brand">
+      <h1 class="login-wordmark">Player<br>Support</h1>
+      <p class="login-tagline">Submit tickets, track replies, and manage applications for Keizaal Online, synced with Discord.</p>
+    </div>
+    <div class="login-panel">
+      <div class="login-card">
+        <div class="eyebrow">Player Sign In</div>
+        <h1>Welcome back</h1>
+        <p>Sign in with your Discord account to submit tickets, track replies, and manage applications.</p>
+        <% if (error) { %>
+          <div class="flash-error">
+            <% if (error === 'discord_failed') { %>Discord sign-in failed. Try again in a moment.
+            <% } else { %>Sign-in error: <%= error %><% } %>
+          </div>
+        <% } %>
+        <a class="btn btn-blurple" href="/auth/discord/login?from=player" style="height:52px;font-size:15px;">
+          Continue with Discord
+        </a>
+        <div style="font-size:12px;color:var(--text-faint);line-height:1.6;">This is the same Discord account you use in the Keizaal Online server.</div>
+        <% if (devLogin) { %>
+          <div class="dev-login-box">
+            <b>Dev mode:</b> Discord isn't configured yet (or you just want to test).
+            <a class="btn btn-outline" href="/auth/dev-login">Use dev login instead</a>
+          </div>
+        <% } %>
+        <div style="font-size:13px;color:var(--text-faint);text-align:center;border-top:1px solid var(--border);padding-top:16px;">
+          Staff member? Visit the <a href="/login">staff sign-in</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

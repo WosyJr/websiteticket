@@ -1,0 +1,126 @@
+<div class="panel" id="modPanel" data-target-id="<%= target.id %>" data-ticket-id="<%= typeof ticketId !== 'undefined' && ticketId ? ticketId : '' %>">
+  <div class="panel-title">Moderation Actions</div>
+  <div class="mod-note">Actions apply directly to this player's Discord account.</div>
+
+  <div class="action-grid">
+    <button type="button" class="action-btn warn" data-action="warn">Warn</button>
+    <button type="button" class="action-btn timeout" data-action="timeout">Timeout</button>
+    <button type="button" class="action-btn kick" data-action="kick">Kick</button>
+    <button type="button" class="action-btn ban" data-action="ban">Ban</button>
+    <button type="button" class="action-btn role" data-action="role">Role</button>
+  </div>
+
+  <div id="modTimeoutField" class="mod-extra-field" hidden>
+    <label>Duration</label>
+    <select id="modDuration">
+      <option value="10">10 minutes</option>
+      <option value="60">1 hour</option>
+      <option value="1440">1 day</option>
+      <option value="10080">1 week</option>
+      <option value="40320">28 days</option>
+    </select>
+  </div>
+
+  <div id="modRoleField" class="mod-extra-field" hidden>
+    <label>Role</label>
+    <% if (roleOptions.length) { %>
+      <select id="modRole">
+        <% roleOptions.forEach(function(r){ %><option value="<%= r.roleId %>"><%= r.label %></option><% }) %>
+      </select>
+    <% } else { %>
+      <input type="text" id="modRole" placeholder="Discord Role ID">
+      <div class="mod-extra-hint">No roles configured yet &mdash; add some under Settings &rarr; Assignable roles.</div>
+    <% } %>
+  </div>
+
+  <textarea id="modReason" class="mod-reason" placeholder="Reason"></textarea>
+  <label class="checkbox-row" style="margin-top:8px;">
+    <input type="checkbox" id="modNotify" checked style="width:14px;height:14px;"> Notify player via Discord DM
+  </label>
+  <button type="button" class="btn btn-outline" id="modSubmit" style="width:100%;margin-top:10px;" disabled>Select an action</button>
+  <div id="modError" class="flash-error" style="margin-top:8px;" hidden></div>
+
+  <div class="mod-log-label">Action Log</div>
+  <div id="modLog">
+    <% if (!targetSummary.modActions.length) { %>
+      <div class="empty-state" style="padding:10px 0;font-size:12px;">No moderation actions yet.</div>
+    <% } %>
+    <% targetSummary.modActions.forEach(function(a){ %>
+      <div class="mod-log-item">
+        <div class="mod-log-top">
+          <span class="mod-log-type <%= a.type %>"><%= a.type.charAt(0).toUpperCase()+a.type.slice(1) %></span>
+          <% if (a.type === 'timeout' && a.duration_minutes) { %><span class="mod-log-detail">(<%= a.duration_minutes %>m)</span><% } %>
+          <% if (a.type === 'role' && a.role_label) { %><span class="mod-log-detail">(<%= a.role_label %>)</span><% } %>
+        </div>
+        <% if (a.reason) { %><div class="mod-log-reason"><%= a.reason %></div><% } %>
+        <div class="mod-log-meta"><%= a.staff_name %> &middot; <%= timeAgo(a.created_at + 'Z') %></div>
+      </div>
+    <% }) %>
+  </div>
+</div>
+
+<script>
+(function () {
+  var panel = document.getElementById('modPanel');
+  if (!panel) return;
+  var targetId = panel.dataset.targetId;
+  var ticketId = panel.dataset.ticketId || null;
+  var buttons = Array.prototype.slice.call(panel.querySelectorAll('.action-btn'));
+  var submitBtn = document.getElementById('modSubmit');
+  var reasonEl = document.getElementById('modReason');
+  var notifyEl = document.getElementById('modNotify');
+  var errorEl = document.getElementById('modError');
+  var timeoutField = document.getElementById('modTimeoutField');
+  var roleField = document.getElementById('modRoleField');
+  var durationEl = document.getElementById('modDuration');
+  var roleEl = document.getElementById('modRole');
+  var selected = null;
+  var LABELS = { warn: 'Issue Warning', timeout: 'Issue Timeout', kick: 'Kick Player', ban: 'Ban Player', role: 'Assign Role' };
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selected = btn.dataset.action;
+      buttons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+      timeoutField.hidden = selected !== 'timeout';
+      roleField.hidden = selected !== 'role';
+      submitBtn.disabled = false;
+      submitBtn.textContent = LABELS[selected];
+      submitBtn.className = 'btn ' + (selected === 'kick' || selected === 'ban' ? 'btn-red' : 'btn-primary');
+      submitBtn.style.width = '100%';
+      submitBtn.style.marginTop = '10px';
+      errorEl.hidden = true;
+    });
+  });
+
+  submitBtn.addEventListener('click', function () {
+    if (!selected) return;
+    var body = { type: selected, reason: reasonEl.value.trim(), notify: notifyEl.checked };
+    if (selected === 'timeout') body.duration_minutes = durationEl.value;
+    if (selected === 'role') body.role_id = roleEl.value;
+    if (ticketId) body.ticket_id = ticketId;
+
+    submitBtn.disabled = true;
+    errorEl.hidden = true;
+    fetch('/api/players/' + targetId + '/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && data.error) {
+          errorEl.textContent = data.error;
+          errorEl.hidden = false;
+          submitBtn.disabled = false;
+          return;
+        }
+        window.location.reload();
+      })
+      .catch(function () {
+        errorEl.textContent = 'Could not reach the server -- check your connection and try again.';
+        errorEl.hidden = false;
+        submitBtn.disabled = false;
+      });
+  });
+})();
+</script>

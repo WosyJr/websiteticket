@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <title>Dev login | Keizaal Online</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-panel" style="flex:1;">
+      <div class="login-card">
+        <div class="eyebrow">Dev-only login</div>
+        <h1>Who are you testing as?</h1>
+        <p>This bypasses Discord entirely so you can test the whole site before real Discord credentials exist. Disable <code>DEV_LOGIN</code> in <code>.env</code> before this ever goes on a public server.</p>
+        <form method="post" action="/auth/dev-login" style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-primary" name="as" value="staff" style="height:48px;">Log in as Staff (Wosy, Gamemaster)</button>
+          <button class="btn btn-outline" name="as" value="player" style="height:48px;">Log in as Player (TestPlayer)</button>
+        </form>
+        <a href="/login" style="font-size:12.5px;">&larr; Back to real login</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

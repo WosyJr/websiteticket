@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <title>Players | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'players', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <h1 class="page-title">Players</h1>
+        <form class="search-form" method="get" action="/staff/players">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" name="q" placeholder="Search by name, Discord ID, or character" value="<%= q || '' %>">
+        </form>
+      </div>
+
+      <div class="content">
+        <div class="table-card">
+          <div class="row players-row head">
+            <div>Player</div><div>Realm / Character</div><div>Tickets</div><div>Actions</div><div>Joined</div>
+          </div>
+          <% if (players.length === 0) { %>
+            <div class="empty-state">No players match that search.</div>
+          <% } %>
+          <% players.forEach(function(p){ %>
+            <div class="row players-row body" data-href="/staff/players/<%= p.id %>">
+              <span class="person">
+                <div class="avatar"><%= (p.avatar||'?').startsWith('http') ? '' : (p.avatar||p.username[0]).toUpperCase() %><% if ((p.avatar||'').startsWith('http')) { %><img src="<%= p.avatar %>" alt=""><% } %></div>
+                <span>
+                  <span class="person-name" style="display:block;"><%= p.username %></span>
+                  <% if (p.is_staff) { %><span class="staff-badge" style="margin-top:2px;"><%= p.staff_rank || 'Staff' %></span><% } %>
+                </span>
+              </span>
+              <span style="color:var(--text-dim);">
+                <% if (p.character_name || p.character_id) { %><%= p.character_name || '' %><%= p.character_id ? ' (' + p.character_id + ')' : '' %><% if (p.realm) { %> &middot; <%= p.realm %><% } %><% } else { %><span style="color:var(--text-faint);">&mdash;</span><% } %>
+              </span>
+              <span><%= p.ticket_count %></span>
+              <span><%= p.action_count > 0 ? p.action_count : '—' %></span>
+              <span class="updated"><%= p.joined_at ? timeAgo(p.joined_at) : timeAgo(p.created_at + 'Z') %></span>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.players-row.body').forEach(function (row) {
+      row.addEventListener('click', function () { window.location.href = row.dataset.href; });
+    });
+  </script>
+</body>
+</html>

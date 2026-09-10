@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+<head>
+  <title>Ticket #<%= ticket.id %> | Keizaal Online</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="player-page">
+    <%- include('partials/player-nav', { active: 'home', user: user }) %>
+
+    <div class="form-wrap" style="width:820px;">
+      <div class="crumb" style="margin-bottom:20px;"><a href="/">Home</a> / <a href="/my-tickets">My Tickets</a> / #<%= ticket.id %></div>
+
+      <div class="thread-head">
+        <h1><%= ticket.subject %></h1>
+        <div class="meta-row">
+          <div class="tag"><%= ticket.category_label %></div>
+          <span class="status <%= ticket.status %>" id="statusBadge"><span class="dot"></span><span id="statusText"><%= ticket.status.charAt(0).toUpperCase()+ticket.status.slice(1) %></span></span>
+          <div class="opened">Opened <%= new Date(ticket.created_at + 'Z').toLocaleString() %></div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-card-head">
+          <div class="form-card-title">Your Submitted Ticket</div>
+        </div>
+        <% ticket.form.forEach(function(qa){ %>
+          <div class="qa">
+            <div class="qa-q"><%= qa.question %></div>
+            <div class="qa-a"><%= qa.answer %></div>
+          </div>
+        <% }) %>
+      </div>
+
+      <div class="notes-label">Conversation <span class="live-dot" title="Updates live"></span></div>
+      <div id="conversation">
+        <% ticket.messages.forEach(function(m){
+             const isYou = m.author_id === user.id;
+        %>
+          <div class="msg <%= isYou ? 'you' : '' %>" data-msg-id="<%= m.id %>">
+            <div class="avatar"><%= m.author_avatar && m.author_avatar.startsWith('http') ? '' : m.author_avatar %><% if (m.author_avatar && m.author_avatar.startsWith('http')) { %><img src="<%= m.author_avatar %>" alt=""><% } %></div>
+            <div class="msg-body">
+              <div class="msg-top">
+                <span class="msg-name"><%= m.author_name %></span>
+                <span class="<%= isYou ? 'you-badge' : (m.author_is_staff ? 'staff-badge' : 'you-badge') %>"><%= isYou ? 'You' : (m.author_is_staff ? (m.author_rank || 'Staff') : 'Player') %></span>
+                <span class="msg-time"><%= new Date(m.created_at + 'Z').toLocaleString() %></span>
+              </div>
+              <div class="msg-text"><%= m.body %></div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+
+      <div id="composerWrap" <%= ticket.status === 'closed' ? 'hidden' : '' %>>
+        <form class="composer" id="composerForm">
+          <textarea name="body" id="composerText" placeholder="Write a reply…" required></textarea>
+          <div class="composer-row">
+            <span class="submit-note">Staff will see this reply and can follow up here -- right away, no need to refresh.</span>
+            <div class="send-spacer"></div>
+            <button class="btn btn-primary" type="submit">Send Reply</button>
+          </div>
+        </form>
+      </div>
+      <div class="submit-note" id="closedNote" <%= ticket.status !== 'closed' ? 'hidden' : '' %>>This ticket is closed. Open a new one from the support hub if you need more help.</div>
+    </div>
+    <div style="height:60px;"></div>
+  </div>
+
+  <script>
+    (function () {
+      var ticketId = <%- JSON.stringify(ticket.id) %>;
+      var currentUserId = <%- JSON.stringify(user.id) %>;
+      var conversation = document.getElementById('conversation');
+      var known = new Set(Array.prototype.map.call(conversation.querySelectorAll('[data-msg-id]'), function (el) { return el.dataset.msgId; }));
+      var currentStatus = <%- JSON.stringify(ticket.status) %>;
+
+      function el(tag, className, text) {
+        var e = document.createElement(tag);
+        if (className) e.className = className;
+        if (text != null) e.textContent = text;
+        return e;
+      }
+
+      function renderMessage(m) {
+        var isYou = String(m.author_id) === String(currentUserId);
+        var row = el('div', 'msg' + (isYou ? ' you' : ''));
+        row.dataset.msgId = m.id;
+
+        var avatar = el('div', 'avatar');
+        if (m.author_avatar && m.author_avatar.indexOf('http') === 0) {
+          var img = document.createElement('img');
+          img.src = m.author_avatar;
+          img.alt = '';
+          avatar.appendChild(img);
+        } else {
+          avatar.textContent = m.author_avatar || '?';
+        }
+
+        var body = el('div', 'msg-body');
+        var top = el('div', 'msg-top');
+        top.appendChild(el('span', 'msg-name', m.author_name));
+        var badgeClass = isYou ? 'you-badge' : (m.author_is_staff ? 'staff-badge' : 'you-badge');
+        var badgeText = isYou ? 'You' : (m.author_is_staff ? (m.author_rank || 'Staff') : 'Player');
+        top.appendChild(el('span', badgeClass, badgeText));
+        top.appendChild(el('span', 'msg-time', new Date(m.created_at + 'Z').toLocaleString()));
+        body.appendChild(top);
+        body.appendChild(el('div', 'msg-text', m.body));
+
+        row.appendChild(avatar);
+        row.appendChild(body);
+        return row;
+      }
+
+      function isNearBottom() {
+        return window.innerHeight + window.scrollY >= document.body.scrollHeight - 200;
+      }
+
+      function applyStatus(status) {
+        if (status === currentStatus) return;
+        currentStatus = status;
+        var badge = document.getElementById('statusBadge');
+        badge.className = 'status ' + status;
+        document.getElementById('statusText').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        if (status === 'closed') {
+          document.getElementById('composerWrap').hidden = true;
+          document.getElementById('closedNote').hidden = false;
+        }
+      }
+
+      function refresh() {
+        fetch('/api/tickets/' + ticketId, { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var stick = isNearBottom();
+            (data.messages || []).forEach(function (m) {
+              var id = String(m.id);
+              if (known.has(id)) return;
+              known.add(id);
+              conversation.appendChild(renderMessage(m));
+            });
+            applyStatus(data.status);
+            if (stick) window.scrollTo(0, document.body.scrollHeight);
+          })
+          .catch(function () {});
+      }
+
+      var form = document.getElementById('composerForm');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var textarea = document.getElementById('composerText');
+          var body = textarea.value.trim();
+          if (!body) return;
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          fetch('/api/tickets/' + ticketId + '/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ body: body }),
+          })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (data) {
+              if (data && data.error) { alert(data.error); return; }
+              textarea.value = '';
+              refresh();
+            })
+            .catch(function () { alert('Could not send -- check your connection and try again.'); })
+            .finally(function () { btn.disabled = false; });
+        });
+      }
+
+      setInterval(refresh, 4000);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+<head>
+  <title>#<%= ticket.id %> | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'tickets', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <div class="crumb"><a href="/staff/tickets">Tickets</a> / <%= ticket.category_label %> / <b>#<%= ticket.id %></b></div>
+        <div class="tb-spacer"></div>
+        <div class="crumb" id="claimedByCrumb" <%= ticket.claimer ? '' : 'hidden' %>>Claimed by <b id="claimedByName"><%= ticket.claimer ? ticket.claimer.username : '' %></b></div>
+        <span class="status <%= ticket.status %>" id="statusBadge"><span class="dot"></span><span id="statusText"><%= ticket.status.charAt(0).toUpperCase()+ticket.status.slice(1) %></span></span>
+        <form method="post" action="/api/tickets/<%= ticket.id %>/claim" style="margin:0;" id="claimForm" <%= (ticket.status !== 'closed' && !ticket.claimed_by) ? '' : 'hidden' %>>
+          <button class="btn btn-primary" type="submit">Claim</button>
+        </form>
+      </div>
+
+      <% if (error === 'user_not_found') { %>
+        <div class="flash-error" style="margin:16px 32px 0;">No known user with that exact username yet. They need to have logged into the site at least once.</div>
+      <% } %>
+
+      <div class="split">
+        <div class="thread-col">
+          <div class="thread-head">
+            <h1><%= ticket.subject %></h1>
+            <div class="meta-row">
+              <div class="tag"><%= ticket.category_label %></div>
+              <div class="opened">Opened <%= new Date(ticket.created_at + 'Z').toLocaleString() %></div>
+            </div>
+          </div>
+
+          <div class="participants-row">
+            <div class="participants-label">Participants</div>
+            <% ticket.participants.forEach(function(p){ %>
+              <div class="participant-chip">
+                <div class="avatar" style="width:22px;height:22px;font-size:10px;"><%= (p.avatar||'?').startsWith('http') ? '' : p.avatar %><% if ((p.avatar||'').startsWith('http')) { %><img src="<%= p.avatar %>" alt=""><% } %></div>
+                <%= p.username %>
+              </div>
+            <% }) %>
+          </div>
+
+          <details class="add-player-form">
+            <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-dim);">Add Player</summary>
+            <form method="post" action="/api/tickets/<%= ticket.id %>/participants" style="margin-top:10px;">
+              <div class="row-inline">
+                <input type="text" name="username" placeholder="Discord ID or exact site username" required>
+                <button class="btn btn-primary" type="submit">Add</button>
+              </div>
+              <div style="font-size:11px;color:var(--text-faint);">They must have signed into the site at least once. We can only look up known accounts.</div>
+            </form>
+          </details>
+
+          <div class="mention-line">Ticket created by <span class="mention">@<%= ticket.reporter.username %></span>, who submitted the following answers to the ticket form:</div>
+
+          <div class="form-card">
+            <div class="form-card-head">
+              <div class="form-card-title">Submitted Ticket Form</div>
+            </div>
+            <% ticket.form.forEach(function(qa){ %>
+              <div class="qa">
+                <div class="qa-q"><%= qa.question %></div>
+                <div class="qa-a"><%= qa.answer %></div>
+              </div>
+            <% }) %>
+          </div>
+
+          <div class="notes-label">Conversation <span class="live-dot" title="Updates live"></span></div>
+          <div id="conversation">
+            <% ticket.messages.forEach(function(m){ %>
+              <div class="msg <%= m.author_is_staff ? '' : 'player' %> <%= !m.visible_to_player ? 'internal' : '' %>" data-msg-id="<%= m.id %>">
+                <div class="avatar"><%= (m.author_avatar||'?').startsWith('http') ? '' : m.author_avatar %><% if ((m.author_avatar||'').startsWith('http')) { %><img src="<%= m.author_avatar %>" alt=""><% } %></div>
+                <div class="msg-body">
+                  <div class="msg-top">
+                    <span class="msg-name"><%= m.author_name %></span>
+                    <span class="<%= m.author_is_staff ? 'staff-badge' : 'player-badge' %>"><%= m.author_is_staff ? (m.author_rank || 'Staff') : 'Player' %></span>
+                    <% if (!m.visible_to_player) { %><span class="internal-badge">Internal only</span><% } %>
+                    <span class="msg-time"><%= new Date(m.created_at + 'Z').toLocaleString() %></span>
+                  </div>
+                  <div class="msg-text"><%= m.body %></div>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+
+          <div id="composerWrap" <%= ticket.status === 'closed' ? 'hidden' : '' %>>
+            <form class="composer" id="composerForm">
+              <textarea name="body" id="composerText" placeholder="Write a reply or internal note…" required></textarea>
+              <div class="composer-row">
+                <label class="checkbox-row"><input type="checkbox" id="visibleCheckbox" value="1" checked style="width:14px;height:14px;"> Visible to player</label>
+                <div class="send-spacer"></div>
+                <button class="btn btn-primary" type="submit">Send Reply</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="side-col">
+          <div class="panel">
+            <div class="panel-title"><%= reportedPlayer ? 'Reported Player' : 'Reporter' %></div>
+            <% if (reportedPlayer && !reportedPlayer.user) { %>
+              <div class="mod-note" style="margin-bottom:12px;">
+                No account matches <b><%= reportedPlayer.typedName || reportedPlayer.typedId || 'the reported player' %></b> yet &mdash; they haven't linked this character on an Item Restoration ticket. Showing what was typed on the form only.
+              </div>
+              <div class="kv"><span>Character Name</span><span><%= reportedPlayer.typedName || 'N/A' %></span></div>
+              <div class="kv"><span>Character ID</span><span><%= reportedPlayer.typedId || 'N/A' %></span></div>
+              <div class="kv"><span>Realm</span><span><%= ticket.realm || 'N/A' %></span></div>
+            <% } else { %>
+              <div class="participant-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                <a href="/staff/players/<%= target.id %>" class="avatar" style="width:40px;height:40px;font-size:15px;"><%= (target.avatar||'?').startsWith('http') ? '' : target.avatar %><% if ((target.avatar||'').startsWith('http')) { %><img src="<%= target.avatar %>" alt=""><% } %></a>
+                <div>
+                  <div style="font-size:14px;font-weight:700;"><a href="/staff/players/<%= target.id %>" style="color:inherit;"><%= target.username %></a></div>
+                  <div style="font-size:11.5px;color:var(--text-faint);"><%= reportedPlayer ? 'Matched from ticket form' : 'Ticket owner' %></div>
+                </div>
+              </div>
+              <% if (target.character_id || target.character_name) { %>
+                <div class="kv"><span>Character ID</span><span><%= target.character_id || target.character_name %></span></div>
+              <% } %>
+              <div class="kv"><span>Realm</span><span><%= target.realm || ticket.realm || 'N/A' %></span></div>
+              <div class="kv"><span>Joined</span><span><%= target.joined_at ? timeAgo(target.joined_at) : (target.created_at ? timeAgo(target.created_at + 'Z') : 'Unknown') %></span></div>
+              <div class="kv"><span>Prior actions</span><span><a href="/staff/players/<%= target.id %>"><%= targetSummary.priorActionsLabel %></a></span></div>
+              <% if (isRealDiscordId(target.id)) { %>
+                <a class="discord-profile-link" href="https://discord.com/users/<%= target.id %>" target="_blank" rel="noopener">View Discord Profile &#8599;</a>
+              <% } %>
+            <% } %>
+          </div>
+
+          <% if (ticket.type === 'item_restoration') { %>
+            <div class="panel">
+              <div class="panel-title">Decision</div>
+              <% if (ticket.decision) { %>
+                <div class="status <%= ticket.decision %>" style="margin-bottom:6px;"><span class="dot"></span><%= ticket.decision.charAt(0).toUpperCase()+ticket.decision.slice(1) %></div>
+              <% } else { %>
+                <form method="post" action="/api/tickets/<%= ticket.id %>/decision" style="margin:0;">
+                  <textarea name="reason" placeholder="Reason (shown to the player, optional)" style="width:100%;min-height:60px;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font-family:'Manrope';font-size:12.5px;outline:none;resize:vertical;margin-bottom:10px;"></textarea>
+                  <div class="decision-row">
+                    <button class="btn btn-green" type="submit" name="decision" value="approved" style="width:100%;">Accept</button>
+                    <button class="btn btn-red" type="submit" name="decision" value="denied" style="width:100%;">Deny</button>
+                  </div>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
+
+          <div class="panel" id="closeTicketPanel" <%= ticket.status === 'closed' ? 'hidden' : '' %>>
+            <div class="panel-title">Close Ticket</div>
+            <form method="post" action="/api/tickets/<%= ticket.id %>/close" style="margin:0;">
+              <textarea name="reason" placeholder="Reason (sent to the player, optional)" style="width:100%;min-height:60px;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);font-family:'Manrope';font-size:12.5px;outline:none;resize:vertical;margin-bottom:10px;"></textarea>
+              <button class="btn btn-outline" type="submit" style="width:100%;">Close Ticket</button>
+            </form>
+          </div>
+
+          <% if (target && !(reportedPlayer && !reportedPlayer.user)) { %>
+            <%- include('partials/moderation-panel', { target: target, targetSummary: targetSummary, roleOptions: roleOptions, ticketId: ticket.id }) %>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var ticketId = <%- JSON.stringify(ticket.id) %>;
+      var conversation = document.getElementById('conversation');
+      var known = new Set(Array.prototype.map.call(conversation.querySelectorAll('[data-msg-id]'), function (el) { return el.dataset.msgId; }));
+      var currentStatus = <%- JSON.stringify(ticket.status) %>;
+      var currentClaimedBy = <%- JSON.stringify(ticket.claimed_by) %>;
+
+      function el(tag, className, text) {
+        var e = document.createElement(tag);
+        if (className) e.className = className;
+        if (text != null) e.textContent = text;
+        return e;
+      }
+
+      function renderMessage(m) {
+        var row = el('div', 'msg' + (m.author_is_staff ? '' : ' player') + (!m.visible_to_player ? ' internal' : ''));
+        row.dataset.msgId = m.id;
+
+        var avatar = el('div', 'avatar');
+        if (m.author_avatar && m.author_avatar.indexOf('http') === 0) {
+          var img = document.createElement('img');
+          img.src = m.author_avatar;
+          img.alt = '';
+          avatar.appendChild(img);
+        } else {
+          avatar.textContent = m.author_avatar || '?';
+        }
+
+        var body = el('div', 'msg-body');
+        var top = el('div', 'msg-top');
+        top.appendChild(el('span', 'msg-name', m.author_name));
+        top.appendChild(el('span', m.author_is_staff ? 'staff-badge' : 'player-badge', m.author_is_staff ? (m.author_rank || 'Staff') : 'Player'));
+        if (!m.visible_to_player) top.appendChild(el('span', 'internal-badge', 'Internal only'));
+        top.appendChild(el('span', 'msg-time', new Date(m.created_at + 'Z').toLocaleString()));
+        body.appendChild(top);
+        body.appendChild(el('div', 'msg-text', m.body));
+
+        row.appendChild(avatar);
+        row.appendChild(body);
+        return row;
+      }
+
+      function isNearBottom() {
+        return window.innerHeight + window.scrollY >= document.body.scrollHeight - 200;
+      }
+
+      function applyLiveState(data) {
+        if (data.status !== currentStatus) {
+          currentStatus = data.status;
+          var badge = document.getElementById('statusBadge');
+          badge.className = 'status ' + data.status;
+          document.getElementById('statusText').textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+          if (data.status === 'closed') {
+            document.getElementById('composerWrap').hidden = true;
+            document.getElementById('claimForm').hidden = true;
+            var closePanel = document.getElementById('closeTicketPanel');
+            if (closePanel) closePanel.hidden = true;
+          }
+        }
+        if (data.claimed_by !== currentClaimedBy) {
+          currentClaimedBy = data.claimed_by;
+          var crumb = document.getElementById('claimedByCrumb');
+          if (data.claimer) {
+            document.getElementById('claimedByName').textContent = data.claimer.username;
+            crumb.hidden = false;
+            document.getElementById('claimForm').hidden = true;
+          }
+        }
+      }
+
+      function refresh() {
+        fetch('/api/tickets/' + ticketId, { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var stick = isNearBottom();
+            (data.messages || []).forEach(function (m) {
+              var id = String(m.id);
+              if (known.has(id)) return;
+              known.add(id);
+              conversation.appendChild(renderMessage(m));
+            });
+            applyLiveState(data);
+            if (stick) window.scrollTo(0, document.body.scrollHeight);
+          })
+          .catch(function () {});
+      }
+
+      var form = document.getElementById('composerForm');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var textarea = document.getElementById('composerText');
+          var visible = document.getElementById('visibleCheckbox');
+          var body = textarea.value.trim();
+          if (!body) return;
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          fetch('/api/tickets/' + ticketId + '/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ body: body, visible_to_player: visible.checked ? 1 : 0 }),
+          })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (data) {
+              if (data && data.error) { alert(data.error); return; }
+              textarea.value = '';
+              refresh();
+            })
+            .catch(function () { alert('Could not send -- check your connection and try again.'); })
+            .finally(function () { btn.disabled = false; });
+        });
+      }
+
+      setInterval(refresh, 4000);
+    })();
+  </script>
+</body>
+</html>

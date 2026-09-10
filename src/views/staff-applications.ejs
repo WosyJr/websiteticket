@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <title>Applications | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'applications', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <h1 class="page-title">Applications</h1>
+        <form class="search-form" method="get" action="/staff/applications">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" name="q" placeholder="Search applications or applicants" value="<%= filters.q || '' %>">
+          <% if (filters.view) { %><input type="hidden" name="view" value="<%= filters.view %>"><% } %>
+        </form>
+        <div class="tb-spacer"></div>
+        <div class="view-pills">
+          <a class="view-pill <%= !filters.view || filters.view === 'all' ? 'active' : '' %>" href="/staff/applications?view=all">All</a>
+          <a class="view-pill <%= filters.view === 'unclaimed' ? 'active' : '' %>" href="/staff/applications?view=unclaimed">Unclaimed</a>
+          <a class="view-pill <%= filters.view === 'mine' ? 'active' : '' %>" href="/staff/applications?view=mine">Mine</a>
+          <a class="view-pill <%= filters.view === 'closed' ? 'active' : '' %>" href="/staff/applications?view=closed">Closed</a>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="stats">
+          <div class="stat-card"><div class="stat-label">Open Applications</div><div class="stat-value red"><%= counts.open_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Unclaimed</div><div class="stat-value gold"><%= counts.unclaimed_count || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Closed Today</div><div class="stat-value green"><%= counts.closed_today || 0 %></div></div>
+          <div class="stat-card"><div class="stat-label">Showing</div><div class="stat-value"><%= tickets.length %></div></div>
+        </div>
+
+        <div class="table-card apps-table">
+          <div class="row head">
+            <span></span>
+            <div>Status</div><div>Type</div><div>Excerpt</div><div>Applicant</div><div>Reviewer</div><div>Updated</div>
+          </div>
+          <% if (tickets.length === 0) { %>
+            <div class="empty-state">No applications match these filters.</div>
+          <% } %>
+          <% tickets.forEach(function(t){ %>
+            <div class="row body" data-href="/staff/tickets/<%= t.id %>">
+              <span></span>
+              <span class="status <%= t.status %>"><span class="dot"></span><%= t.status.charAt(0).toUpperCase()+t.status.slice(1) %></span>
+              <span class="tag"><%= TYPE_LABEL[t.type] || t.category_label %></span>
+              <span class="subject-cell"><span class="subject"><%= t.subject %></span></span>
+              <span class="person"><div class="avatar"><%= (t.reporter_name||'?')[0].toUpperCase() %></div><span class="person-name"><%= t.reporter_name %></span></span>
+              <% if (t.claimer_name) { %>
+                <span class="person"><div class="avatar"><%= t.claimer_name[0].toUpperCase() %></div><span class="person-name"><%= t.claimer_name %></span></span>
+              <% } else { %><span class="unclaimed">Unclaimed</span><% } %>
+              <span class="updated"><%= new Date(t.updated_at + 'Z').toLocaleString() %></span>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.row.body').forEach(function (row) {
+      row.addEventListener('click', function () { window.location.href = row.dataset.href; });
+    });
+  </script>
+</body>
+</html>

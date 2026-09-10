@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+  <title><%= article.title %> | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'kb', user: user }) %>
+
+    <div class="main">
+      <div class="topbar">
+        <div class="crumb"><a href="/staff/kb?realm=<%= article.realm %>">Knowledge Base</a> / <b><%= article.title %></b></div>
+        <div class="tb-spacer"></div>
+        <form method="post" action="/api/kb/articles/<%= article.id %>/pin" style="margin:0;">
+          <button class="btn <%= article.pinned ? 'btn-primary' : 'btn-outline' %>" type="submit"><%= article.pinned ? 'Pinned' : 'Pin Article' %></button>
+        </form>
+      </div>
+
+      <div class="content">
+        <div class="kb-article-head">
+          <div>
+            <div class="kb-article-title"><%= article.title %></div>
+          </div>
+        </div>
+        <div class="kb-article-meta">
+          Posted by <span class="kb-author"><%= article.author_name %></span> &middot; <%= new Date(article.created_at + 'Z').toLocaleString() %>
+        </div>
+
+        <div class="kb-article-body"><%- article.bodyHtml %></div>
+
+        <div class="kb-comments-label">Comments (<%= comments.length %>)</div>
+
+        <% comments.forEach(function(c){ %>
+          <div class="msg <%= !c.author_is_staff ? 'player' : '' %>" style="margin-bottom:12px;">
+            <div class="avatar"><%= (c.author_avatar||'?').startsWith('http') ? '' : c.author_avatar %><% if ((c.author_avatar||'').startsWith('http')) { %><img src="<%= c.author_avatar %>" alt=""><% } %></div>
+            <div class="msg-body">
+              <div class="msg-top">
+                <span class="msg-name"><%= c.author_name %></span>
+                <span class="<%= c.author_is_staff ? 'staff-badge' : 'player-badge' %>"><%= c.author_is_staff ? (c.author_rank || 'Staff') : 'Player' %></span>
+                <span class="msg-time"><%= new Date(c.created_at + 'Z').toLocaleString() %></span>
+              </div>
+              <div class="msg-text"><%- c.bodyHtml %></div>
+            </div>
+          </div>
+        <% }) %>
+        <% if (comments.length === 0) { %>
+          <div class="empty-state" style="padding:16px 0;">No comments yet. Be the first to add one.</div>
+        <% } %>
+
+        <form class="composer" method="post" action="/api/kb/articles/<%= article.id %>/comments" style="margin-top:16px;max-width:720px;">
+          <textarea name="body" placeholder="Add a comment... use [link text](https://...) to add a clickable link" required></textarea>
+          <div class="composer-row">
+            <div class="send-spacer"></div>
+            <button class="btn btn-primary" type="submit">Add Comment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
