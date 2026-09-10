@@ -20,10 +20,14 @@
               <div class="avatar" style="width:52px;height:52px;font-size:19px;"><%= (player.avatar||'?').startsWith('http') ? '' : (player.avatar||player.username[0]).toUpperCase() %><% if ((player.avatar||'').startsWith('http')) { %><img src="<%= player.avatar %>" alt=""><% } %></div>
               <div>
                 <h1 style="margin-bottom:4px;"><%= player.username %></h1>
-                <% if (player.is_staff) { %><span class="staff-badge"><%= player.staff_rank || 'Staff' %></span><% } else { %><span class="player-badge">Player</span><% } %>
+                <% if (player.is_placeholder) { %><span class="player-badge">Unlinked Discord Account</span><% } else if (player.is_staff) { %><span class="staff-badge"><%= player.staff_rank || 'Staff' %></span><% } else { %><span class="player-badge">Player</span><% } %>
               </div>
             </div>
           </div>
+
+          <% if (player.is_placeholder) { %>
+            <div class="mod-note" style="margin-top:18px;">This player hasn't signed into the site yet. Moderation actions taken here still run directly against their Discord account.</div>
+          <% } %>
 
           <div class="panel" style="margin-top:18px;">
             <div class="panel-title">Profile</div>

@@ -84,8 +84,6 @@
   </div>
 
   <script>
-    // Rows are plain divs (not links) so a checkbox can live inside one without triggering
-    // navigation -- clicking anywhere else on the row still opens the ticket.
     document.querySelectorAll('.row.body').forEach(function (row) {
       row.addEventListener('click', function (e) {
         if (e.target.closest('.row-check')) return;

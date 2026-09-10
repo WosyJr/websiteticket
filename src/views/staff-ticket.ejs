@@ -46,9 +46,10 @@
           <details class="add-player-form">
             <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-dim);">Add Player</summary>
             <form method="post" action="/api/tickets/<%= ticket.id %>/participants" style="margin-top:10px;">
-              <div class="row-inline">
-                <input type="text" name="username" placeholder="Discord ID or exact site username" required>
+              <div class="row-inline" style="position:relative;">
+                <input type="text" name="username" id="addPlayerInput" placeholder="Discord ID or exact site username" autocomplete="off" required>
                 <button class="btn btn-primary" type="submit">Add</button>
+                <div class="autocomplete-dropdown" id="addPlayerDropdown" hidden></div>
               </div>
               <div style="font-size:11px;color:var(--text-faint);">They must have signed into the site at least once. We can only look up known accounts.</div>
             </form>
@@ -88,7 +89,10 @@
 
           <div id="composerWrap" <%= ticket.status === 'closed' ? 'hidden' : '' %>>
             <form class="composer" id="composerForm">
-              <textarea name="body" id="composerText" placeholder="Write a reply or internal note…" required></textarea>
+              <div style="position:relative;">
+                <textarea name="body" id="composerText" placeholder="Write a reply or internal note… (type @ to notify another staff member)" required></textarea>
+                <div class="autocomplete-dropdown" id="mentionDropdown" hidden></div>
+              </div>
               <div class="composer-row">
                 <label class="checkbox-row"><input type="checkbox" id="visibleCheckbox" value="1" checked style="width:14px;height:14px;"> Visible to player</label>
                 <div class="send-spacer"></div>
@@ -100,20 +104,29 @@
 
         <div class="side-col">
           <div class="panel">
-            <div class="panel-title"><%= reportedPlayer ? 'Reported Player' : 'Reporter' %></div>
-            <% if (reportedPlayer && !reportedPlayer.user) { %>
+            <div class="panel-title"><%= overrideApplied ? 'Target (Discord ID)' : (reportedPlayer ? 'Reported Player' : 'Reporter') %></div>
+            <% if (reportedPlayer && !reportedPlayer.user && !overrideApplied) { %>
               <div class="mod-note" style="margin-bottom:12px;">
                 No account matches <b><%= reportedPlayer.typedName || reportedPlayer.typedId || 'the reported player' %></b> yet &mdash; they haven't linked this character on an Item Restoration ticket. Showing what was typed on the form only.
               </div>
               <div class="kv"><span>Character Name</span><span><%= reportedPlayer.typedName || 'N/A' %></span></div>
               <div class="kv"><span>Character ID</span><span><%= reportedPlayer.typedId || 'N/A' %></span></div>
               <div class="kv"><span>Realm</span><span><%= ticket.realm || 'N/A' %></span></div>
+
+              <form method="get" action="/staff/tickets/<%= ticket.id %>" class="raw-id-form">
+                <label>Take action by Discord ID</label>
+                <div class="row-inline">
+                  <input type="text" name="target_discord_id" placeholder="Discord ID" required inputmode="numeric">
+                  <button class="btn btn-outline" type="submit">Load</button>
+                </div>
+                <div class="mod-extra-hint">Use this if they haven't linked a character yet but you know their Discord ID.</div>
+              </form>
             <% } else { %>
               <div class="participant-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                 <a href="/staff/players/<%= target.id %>" class="avatar" style="width:40px;height:40px;font-size:15px;"><%= (target.avatar||'?').startsWith('http') ? '' : target.avatar %><% if ((target.avatar||'').startsWith('http')) { %><img src="<%= target.avatar %>" alt=""><% } %></a>
                 <div>
                   <div style="font-size:14px;font-weight:700;"><a href="/staff/players/<%= target.id %>" style="color:inherit;"><%= target.username %></a></div>
-                  <div style="font-size:11.5px;color:var(--text-faint);"><%= reportedPlayer ? 'Matched from ticket form' : 'Ticket owner' %></div>
+                  <div style="font-size:11.5px;color:var(--text-faint);"><%= overrideApplied ? 'Unlinked Discord account' : (reportedPlayer ? 'Matched from ticket form' : 'Ticket owner') %></div>
                 </div>
               </div>
               <% if (target.character_id || target.character_name) { %>
@@ -153,7 +166,7 @@
             </form>
           </div>
 
-          <% if (target && !(reportedPlayer && !reportedPlayer.user)) { %>
+          <% if (target && !(reportedPlayer && !reportedPlayer.user && !overrideApplied)) { %>
             <%- include('partials/moderation-panel', { target: target, targetSummary: targetSummary, roleOptions: roleOptions, ticketId: ticket.id }) %>
           <% } %>
         </div>
@@ -250,6 +263,47 @@
           .catch(function () {});
       }
 
+      var mentionIds = [];
+      var composerText = document.getElementById('composerText');
+      var mentionDropdown = document.getElementById('mentionDropdown');
+
+      function closeMentionDropdown() {
+        mentionDropdown.hidden = true;
+        mentionDropdown.innerHTML = '';
+      }
+
+      if (composerText) {
+        composerText.addEventListener('input', function () {
+          var caret = composerText.selectionStart;
+          var before = composerText.value.slice(0, caret);
+          var match = /@([A-Za-z0-9_.]{0,32})$/.exec(before);
+          if (!match) { closeMentionDropdown(); return; }
+          var q = match[1];
+          fetch('/api/players/search?staffOnly=1&q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (results) {
+              if (!results.length) { closeMentionDropdown(); return; }
+              mentionDropdown.innerHTML = '';
+              results.forEach(function (u) {
+                var item = el('div', 'autocomplete-item', u.username + (u.staff_rank ? ' (' + u.staff_rank + ')' : ''));
+                item.addEventListener('click', function () {
+                  var replaced = before.slice(0, before.length - match[0].length) + '@' + u.username + ' ';
+                  composerText.value = replaced + composerText.value.slice(caret);
+                  if (mentionIds.indexOf(u.id) === -1) mentionIds.push(u.id);
+                  closeMentionDropdown();
+                  composerText.focus();
+                });
+                mentionDropdown.appendChild(item);
+              });
+              mentionDropdown.hidden = false;
+            })
+            .catch(function () {});
+        });
+        document.addEventListener('click', function (e) {
+          if (e.target !== composerText) closeMentionDropdown();
+        });
+      }
+
       var form = document.getElementById('composerForm');
       if (form) {
         form.addEventListener('submit', function (e) {
@@ -263,16 +317,46 @@
           fetch('/api/tickets/' + ticketId + '/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({ body: body, visible_to_player: visible.checked ? 1 : 0 }),
+            body: JSON.stringify({ body: body, visible_to_player: visible.checked ? 1 : 0, mentions: mentionIds }),
           })
             .then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (data) {
               if (data && data.error) { alert(data.error); return; }
               textarea.value = '';
+              mentionIds = [];
               refresh();
             })
             .catch(function () { alert('Could not send -- check your connection and try again.'); })
             .finally(function () { btn.disabled = false; });
+        });
+      }
+
+      var addPlayerInput = document.getElementById('addPlayerInput');
+      var addPlayerDropdown = document.getElementById('addPlayerDropdown');
+      if (addPlayerInput) {
+        addPlayerInput.addEventListener('input', function () {
+          var q = addPlayerInput.value.trim();
+          if (!q) { addPlayerDropdown.hidden = true; addPlayerDropdown.innerHTML = ''; return; }
+          fetch('/api/players/search?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (results) {
+              if (!results.length) { addPlayerDropdown.hidden = true; addPlayerDropdown.innerHTML = ''; return; }
+              addPlayerDropdown.innerHTML = '';
+              results.forEach(function (u) {
+                var item = el('div', 'autocomplete-item', u.username + (u.is_staff ? ' (' + (u.staff_rank || 'Staff') + ')' : ''));
+                item.addEventListener('click', function () {
+                  addPlayerInput.value = u.id;
+                  addPlayerDropdown.hidden = true;
+                  addPlayerDropdown.innerHTML = '';
+                });
+                addPlayerDropdown.appendChild(item);
+              });
+              addPlayerDropdown.hidden = false;
+            })
+            .catch(function () {});
+        });
+        document.addEventListener('click', function (e) {
+          if (e.target !== addPlayerInput) { addPlayerDropdown.hidden = true; }
         });
       }
 

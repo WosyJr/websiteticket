@@ -11,9 +11,9 @@ db.pragma("foreign_keys = ON");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,               -- discord user id, or "dev-staff"/"dev-player" in dev mode
+  id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
-  avatar TEXT,                        -- letter or url
+  avatar TEXT,
   is_staff INTEGER NOT NULL DEFAULT 0,
   staff_rank TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -21,15 +21,15 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT NOT NULL,                 -- 'general' | 'player_report' | 'item_restoration' | 'staff_report' | 'bug_report'
-  realm TEXT,                         -- 'Sovngarde' | 'Paarthurnax' | 'Moonshadow' | NULL
-  category_label TEXT NOT NULL,       -- human readable, e.g. "Paarthurnax Player Reports"
+  type TEXT NOT NULL,
+  realm TEXT,
+  category_label TEXT NOT NULL,
   subject TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open',-- 'open' | 'claimed' | 'closed'
+  status TEXT NOT NULL DEFAULT 'open',
   reporter_id TEXT NOT NULL REFERENCES users(id),
   claimed_by TEXT REFERENCES users(id),
-  form_json TEXT NOT NULL DEFAULT '[]', -- [{question, answer}, ...] submitted form
-  decision TEXT,                      -- for item_restoration: 'approved' | 'denied' | NULL
+  form_json TEXT NOT NULL DEFAULT '[]',
+  decision TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE TABLE IF NOT EXISTS ticket_participants (
   ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id),
-  role TEXT NOT NULL DEFAULT 'player', -- 'owner' | 'added_player' | 'staff'
+  role TEXT NOT NULL DEFAULT 'player',
   PRIMARY KEY (ticket_id, user_id)
 );
 
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE TABLE IF NOT EXISTS kb_articles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  realm TEXT NOT NULL,                -- 'general' | 'sovngarde' | 'paarthurnax' | 'moonshadow'
+  realm TEXT NOT NULL,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   author_id TEXT NOT NULL REFERENCES users(id),
@@ -76,15 +76,18 @@ CREATE TABLE IF NOT EXISTS kb_comments (
 CREATE TABLE IF NOT EXISTS moderation_actions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   target_user_id TEXT NOT NULL REFERENCES users(id),
-  type TEXT NOT NULL,                 -- 'warn' | 'timeout' | 'kick' | 'ban' | 'role'
+  type TEXT NOT NULL,
   reason TEXT,
-  duration_minutes INTEGER,           -- set for 'timeout'
-  role_id TEXT,                       -- set for 'role'
-  role_label TEXT,                    -- set for 'role'
+  duration_minutes INTEGER,
+  role_id TEXT,
+  role_label TEXT,
   staff_id TEXT NOT NULL REFERENCES users(id),
   staff_name TEXT NOT NULL,
   notified INTEGER NOT NULL DEFAULT 0,
   ticket_id INTEGER REFERENCES tickets(id),
+  revoked_at TEXT,
+  revoked_by TEXT,
+  revoked_by_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
@@ -99,12 +102,17 @@ function addColumnIfMissing(table, columnDef) {
 addColumnIfMissing("users", "character_name TEXT");
 addColumnIfMissing("users", "character_id TEXT");
 addColumnIfMissing("users", "realm TEXT");
-addColumnIfMissing("users", "joined_at TEXT"); // Discord guild join date, when known
+addColumnIfMissing("users", "joined_at TEXT");
+addColumnIfMissing("users", "is_placeholder INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("users", "status TEXT NOT NULL DEFAULT 'available'");
+addColumnIfMissing("moderation_actions", "revoked_at TEXT");
+addColumnIfMissing("moderation_actions", "revoked_by TEXT");
+addColumnIfMissing("moderation_actions", "revoked_by_name TEXT");
 
 const SETTING_DEFAULTS = {
-  dm_on_reply: "1", // DM the player when staff sends a player-visible reply
-  dm_on_close: "1", // DM the player when their ticket is closed / a decision is made
-  log_enabled: "1", // post ticket activity (opened/claimed/closed/replied/etc) to a Discord channel
+  dm_on_reply: "1",
+  dm_on_close: "1",
+  log_enabled: "1",
   log_channel_id: "1547369380600352858",
   moderation_role_map: "",
 };
@@ -144,18 +152,25 @@ function getModerationRoleOptions() {
     .filter((r) => r.roleId);
 }
 
+const MANAGEMENT_RANKS = ["Senior Gamemaster"];
+function isManagement(user) {
+  return !!user && !!user.is_staff && MANAGEMENT_RANKS.includes(user.staff_rank);
+}
+
 const seedUser = db.prepare(`
   INSERT INTO users (id, username, avatar, is_staff, staff_rank)
   VALUES (@id, @username, @avatar, @is_staff, @staff_rank)
   ON CONFLICT(id) DO UPDATE SET username=excluded.username, avatar=excluded.avatar,
     is_staff=excluded.is_staff, staff_rank=excluded.staff_rank
 `);
-seedUser.run({ id: "dev-staff", username: "Wosy", avatar: "W", is_staff: 1, staff_rank: "Gamemaster" });
+seedUser.run({ id: "dev-staff", username: "Wosy", avatar: "W", is_staff: 1, staff_rank: "Senior Gamemaster" });
 seedUser.run({ id: "dev-player", username: "TestPlayer", avatar: "T", is_staff: 0, staff_rank: null });
 
 db.getSetting = getSetting;
 db.getAllSettings = getAllSettings;
 db.setSetting = setSetting;
 db.getModerationRoleOptions = getModerationRoleOptions;
+db.isManagement = isManagement;
+db.MANAGEMENT_RANKS = MANAGEMENT_RANKS;
 
 module.exports = db;

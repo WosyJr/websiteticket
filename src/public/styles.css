@@ -103,11 +103,23 @@ a:hover{color:var(--text);}
 .nav-subitem:hover{color:var(--text-dim);}
 .nav-subitem.active{color:var(--red);}
 .nav-spacer{flex:1;}
-.profile{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--bg-elev-2);margin-top:14px;}
+.profile-wrap{position:relative;margin-top:14px;}
+.profile{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--bg-elev-2);width:100%;border:none;cursor:pointer;text-align:left;font-family:'Manrope';color:var(--text);}
+.profile:hover{background:var(--bg-elev-3);}
 .profile-name{font-size:13px;font-weight:700;}
 .rank-pill{display:inline-block;margin-top:2px;font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--gold);background:var(--gold-soft);border-radius:20px;padding:1px 7px;}
 .logout-form{margin:0;}
 .logout-btn{background:none;border:none;color:var(--text-faint);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;}
+
+.profile-popover{position:absolute;bottom:calc(100% + 8px);left:0;right:0;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:10;}
+.profile-popover-link{display:block;font-size:12.5px;font-weight:700;color:var(--amber);}
+.profile-popover-link:hover{color:var(--text);}
+.profile-popover-stat{font-size:12px;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;}
+.profile-popover-label{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin-top:2px;}
+.status-options{display:flex;gap:6px;}
+.status-opt{flex:1;background:var(--bg-elev-3);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;padding:6px 4px;font-size:11px;font-weight:700;font-family:'Manrope';cursor:pointer;}
+.status-opt:hover{color:var(--text);}
+.status-opt.active{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);}
 
 .main{flex:1;display:flex;flex-direction:column;min-width:0;}
 .topbar{display:flex;align-items:center;gap:16px;padding:18px 32px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
@@ -358,3 +370,25 @@ input[type="checkbox"]:disabled{opacity:.4;cursor:not-allowed;}
 .mod-log-detail{font-size:11.5px;color:var(--text-faint);}
 .mod-log-reason{font-size:12.5px;color:var(--text-dim);margin-top:5px;line-height:1.5;}
 .mod-log-meta{font-size:11px;color:var(--text-faint);margin-top:6px;}
+.mod-log-item.revoked{opacity:.55;}
+.mod-log-revoke-btn{margin-left:auto;background:none;border:none;color:var(--text-faint);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-family:'Manrope';}
+.mod-log-revoke-btn:hover{color:var(--dsc-red);}
+.mod-log-revoked-tag{margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-faint);background:var(--bg-elev-3);border-radius:5px;padding:2px 7px;}
+
+.autocomplete-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:9px;padding:4px;z-index:8;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:220px;overflow:auto;}
+.autocomplete-item{padding:8px 10px;border-radius:6px;font-size:12.5px;color:var(--text-dim);cursor:pointer;}
+.autocomplete-item:hover{background:var(--bg-elev-3);color:var(--text);}
+
+.raw-id-form{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+.raw-id-form label{display:block;font-size:11px;font-weight:700;color:var(--text-faint);margin-bottom:6px;}
+.raw-id-form .row-inline{display:flex;gap:8px;}
+.raw-id-form input{flex:1;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;color:var(--text);font-family:'Manrope';font-size:12.5px;outline:none;}
+
+.mgmt-row{grid-template-columns:1fr 140px 100px 100px 110px 110px 130px;}
+.mgmt-row.head > div{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-faint);font-weight:700;}
+.mgmt-row.body{text-decoration:none;color:inherit;}
+.mgmt-row.body:hover{background:var(--bg-elev-2);}
+.status-text{font-size:12px;font-weight:700;}
+.status-text.available{color:var(--green);}
+.status-text.busy{color:var(--amber);}
+.status-text.away{color:var(--text-faint);}

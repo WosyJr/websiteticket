@@ -17,7 +17,7 @@ const app = express();
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
-app.locals.timeAgo = timeAgo; 
+app.locals.timeAgo = timeAgo;
 app.locals.isRealDiscordId = isRealDiscordId;
 
 app.use(express.urlencoded({ extended: true }));
@@ -33,13 +33,11 @@ app.use(
   })
 );
 
-
 app.use((req, res, next) => {
   res.locals.currentUser = req.session.user || null;
   res.locals.devLogin = process.env.DEV_LOGIN === "true";
   next();
 });
-
 
 app.use((req, res, next) => {
   if (req.session.user && req.session.user.is_staff) {
@@ -51,6 +49,23 @@ app.use((req, res, next) => {
         .get(...APPLICATION_TYPES).c;
     } catch {
       res.locals.openApplicationsCount = 0;
+    }
+    try {
+      res.locals.isManagement = db.isManagement(req.session.user);
+    } catch {
+      res.locals.isManagement = false;
+    }
+    try {
+      const row = db.prepare(`SELECT status FROM users WHERE id = ?`).get(req.session.user.id);
+      res.locals.myStatus = row ? row.status : "available";
+      res.locals.myStats = {
+        closedCount: db
+          .prepare(`SELECT COUNT(*) as c FROM tickets WHERE claimed_by = ? AND status = 'closed'`)
+          .get(req.session.user.id).c,
+      };
+    } catch {
+      res.locals.myStatus = "available";
+      res.locals.myStats = { closedCount: 0 };
     }
   }
   next();

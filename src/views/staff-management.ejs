@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <title>Management | Keizaal Staff Portal</title>
+  <%- include('partials/head-tags') %>
+</head>
+<body>
+  <div class="app">
+    <%- include('partials/staff-sidebar', { active: 'management', user: user }) %>
+
+    <div class="main">
+      <div class="topbar"><h1 class="page-title">Management</h1></div>
+
+      <div class="content">
+        <div class="notes-label">Staff Roster</div>
+        <div class="table-card">
+          <div class="row mgmt-row head">
+            <div>Staff</div><div>Rank</div><div>Status</div><div>Tickets Open</div><div>Tickets Closed</div><div>Actions Taken</div><div>Joined</div>
+          </div>
+          <% if (staff.length === 0) { %>
+            <div class="empty-state">No staff members yet.</div>
+          <% } %>
+          <% staff.forEach(function(s){ %>
+            <a class="row mgmt-row body" href="/staff/players/<%= s.id %>">
+              <span class="person">
+                <div class="avatar"><%= (s.avatar||'?').startsWith('http') ? '' : s.avatar %><% if ((s.avatar||'').startsWith('http')) { %><img src="<%= s.avatar %>" alt=""><% } %></div>
+                <span class="person-name"><%= s.username %></span>
+              </span>
+              <span><span class="staff-badge"><%= s.staff_rank || 'Staff' %></span></span>
+              <span class="status-text <%= s.status || 'available' %>"><%= (s.status || 'available').charAt(0).toUpperCase() + (s.status || 'available').slice(1) %></span>
+              <span><%= s.tickets_open %></span>
+              <span><%= s.tickets_closed %></span>
+              <span><%= s.actions_taken %></span>
+              <span class="updated"><%= s.joined_at ? timeAgo(s.joined_at) : timeAgo(s.created_at + 'Z') %></span>
+            </a>
+          <% }) %>
+        </div>
+
+        <div class="notes-label" style="margin-top:28px;">Recent Moderation Activity</div>
+        <% if (recentActions.length === 0) { %>
+          <div class="empty-state">No moderation actions yet.</div>
+        <% } %>
+        <% recentActions.forEach(function(a){ %>
+          <div class="mod-log-item <%= a.revoked_at ? 'revoked' : '' %>">
+            <div class="mod-log-top">
+              <span class="mod-log-type <%= a.type %>"><%= a.type.charAt(0).toUpperCase()+a.type.slice(1) %></span>
+              <span class="mod-log-detail">on <%= a.target_name || a.target_user_id %></span>
+              <% if (a.revoked_at) { %><span class="mod-log-revoked-tag">Revoked</span><% } %>
+            </div>
+            <% if (a.reason) { %><div class="mod-log-reason"><%= a.reason %></div><% } %>
+            <div class="mod-log-meta">By <%= a.staff_name %> &middot; <%= timeAgo(a.created_at + 'Z') %></div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

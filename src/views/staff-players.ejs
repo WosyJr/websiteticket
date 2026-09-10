@@ -23,7 +23,19 @@
             <div>Player</div><div>Realm / Character</div><div>Tickets</div><div>Actions</div><div>Joined</div>
           </div>
           <% if (players.length === 0) { %>
-            <div class="empty-state">No players match that search.</div>
+            <div class="empty-state">
+              No players match that search.
+              <% if (rawIdCandidate) { %>
+                <div style="margin-top:12px;"><a class="btn btn-outline" href="/staff/players/lookup?discord_id=<%= rawIdCandidate %>">Load moderation tools for Discord ID <%= rawIdCandidate %></a></div>
+              <% } %>
+            </div>
+          <% } else if (rawIdCandidate) { %>
+            <div class="row players-row body" style="cursor:default;">
+              <span style="grid-column:1/-1;font-size:12.5px;color:var(--text-faint);">
+                No account exactly matches that Discord ID &mdash;
+                <a href="/staff/players/lookup?discord_id=<%= rawIdCandidate %>">load moderation tools for <%= rawIdCandidate %></a>
+              </span>
+            </div>
           <% } %>
           <% players.forEach(function(p){ %>
             <div class="row players-row body" data-href="/staff/players/<%= p.id %>">

@@ -1,4 +1,5 @@
 const express = require("express");
+const db = require("../db");
 const { completeDiscordLogin } = require("../auth");
 
 const router = express.Router();
@@ -46,10 +47,14 @@ router.get("/dev-login", (req, res) => {
 router.post("/dev-login", (req, res) => {
   if (process.env.DEV_LOGIN !== "true") return res.status(404).send("Not found.");
   const as = req.body.as === "staff" ? "staff" : "player";
-  req.session.user =
-    as === "staff"
-      ? { id: "dev-staff", username: "Wosy", avatar: "W", is_staff: 1, staff_rank: "Gamemaster" }
-      : { id: "dev-player", username: "TestPlayer", avatar: "T", is_staff: 0, staff_rank: null };
+  const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(as === "staff" ? "dev-staff" : "dev-player");
+  req.session.user = row || {
+    id: as === "staff" ? "dev-staff" : "dev-player",
+    username: as === "staff" ? "Wosy" : "TestPlayer",
+    avatar: as === "staff" ? "W" : "T",
+    is_staff: as === "staff" ? 1 : 0,
+    staff_rank: as === "staff" ? "Senior Gamemaster" : null,
+  };
   res.redirect(as === "staff" ? "/staff" : "/my-tickets");
 });
 

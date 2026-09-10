@@ -1,6 +1,8 @@
 <div class="panel" id="modPanel" data-target-id="<%= target.id %>" data-ticket-id="<%= typeof ticketId !== 'undefined' && ticketId ? ticketId : '' %>">
   <div class="panel-title">Moderation Actions</div>
-  <div class="mod-note">Actions apply directly to this player's Discord account.</div>
+  <div class="mod-note">
+    <% if (target.is_placeholder) { %>This account hasn't signed into the site yet -- actions still run directly against this Discord ID.<% } else { %>Actions apply directly to this player's Discord account.<% } %>
+  </div>
 
   <div class="action-grid">
     <button type="button" class="action-btn warn" data-action="warn">Warn</button>
@@ -46,14 +48,22 @@
       <div class="empty-state" style="padding:10px 0;font-size:12px;">No moderation actions yet.</div>
     <% } %>
     <% targetSummary.modActions.forEach(function(a){ %>
-      <div class="mod-log-item">
+      <div class="mod-log-item <%= a.revoked_at ? 'revoked' : '' %>">
         <div class="mod-log-top">
           <span class="mod-log-type <%= a.type %>"><%= a.type.charAt(0).toUpperCase()+a.type.slice(1) %></span>
           <% if (a.type === 'timeout' && a.duration_minutes) { %><span class="mod-log-detail">(<%= a.duration_minutes %>m)</span><% } %>
           <% if (a.type === 'role' && a.role_label) { %><span class="mod-log-detail">(<%= a.role_label %>)</span><% } %>
+          <% if (a.revoked_at) { %>
+            <span class="mod-log-revoked-tag">Revoked</span>
+          <% } else { %>
+            <button type="button" class="mod-log-revoke-btn" data-action-id="<%= a.id %>">Revoke</button>
+          <% } %>
         </div>
         <% if (a.reason) { %><div class="mod-log-reason"><%= a.reason %></div><% } %>
-        <div class="mod-log-meta"><%= a.staff_name %> &middot; <%= timeAgo(a.created_at + 'Z') %></div>
+        <div class="mod-log-meta">
+          <%= a.staff_name %> &middot; <%= timeAgo(a.created_at + 'Z') %>
+          <% if (a.revoked_at) { %> &middot; revoked by <%= a.revoked_by_name %> <%= timeAgo(a.revoked_at + 'Z') %><% } %>
+        </div>
       </div>
     <% }) %>
   </div>
@@ -121,6 +131,30 @@
         errorEl.hidden = false;
         submitBtn.disabled = false;
       });
+  });
+
+  Array.prototype.slice.call(panel.querySelectorAll('.mod-log-revoke-btn')).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!window.confirm('Revoke this action?')) return;
+      btn.disabled = true;
+      fetch('/api/players/moderation/' + btn.dataset.actionId + '/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (data) {
+          if (data && data.error) {
+            window.alert(data.error);
+            btn.disabled = false;
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          window.alert('Could not reach the server -- check your connection and try again.');
+          btn.disabled = false;
+        });
+    });
   });
 })();
 </script>

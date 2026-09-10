@@ -6,6 +6,7 @@ const bot = require("../discordBot");
 const router = express.Router();
 const ACTION_TYPES = ["warn", "timeout", "kick", "ban", "role"];
 const ACTION_LABEL = { warn: "Warning", timeout: "Timeout", kick: "Kick", ban: "Ban", role: "Role" };
+const STATUS_VALUES = ["available", "busy", "away"];
 
 const insertAction = db.prepare(`
   INSERT INTO moderation_actions
@@ -13,11 +14,56 @@ const insertAction = db.prepare(`
   VALUES (@target_user_id, @type, @reason, @duration_minutes, @role_id, @role_label, @staff_id, @staff_name, @notified, @ticket_id)
 `);
 
+router.get("/search", requireStaff, (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json([]);
+  let sql = `
+    SELECT id, username, avatar, is_staff, staff_rank, character_name, character_id
+    FROM users WHERE (username LIKE ? OR id = ? OR character_name LIKE ? OR character_id = ?)`;
+  const params = [`%${q}%`, q, `%${q}%`, q];
+  if (req.query.staffOnly) sql += ` AND is_staff = 1`;
+  sql += ` ORDER BY username LIMIT 8`;
+  res.json(db.prepare(sql).all(...params));
+});
+
+router.post("/me/status", requireStaff, (req, res) => {
+  const status = STATUS_VALUES.includes(req.body.status) ? req.body.status : "available";
+  db.prepare(`UPDATE users SET status = ? WHERE id = ?`).run(status, req.session.user.id);
+  res.json({ ok: true, status });
+});
+
+router.post("/moderation/:actionId/revoke", requireStaff, async (req, res) => {
+  const action = db.prepare(`SELECT * FROM moderation_actions WHERE id = ?`).get(req.params.actionId);
+  if (!action) return res.status(404).json({ error: "Unknown action." });
+  if (action.revoked_at) return res.status(400).json({ error: "Already revoked." });
+
+  const target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(action.target_user_id);
+  const result = await bot.applyModerationRevoke(action);
+  if (!result.ok) return res.status(400).json({ error: result.error || "Discord rejected that." });
+
+  db.prepare(
+    `UPDATE moderation_actions SET revoked_at = datetime('now'), revoked_by = ?, revoked_by_name = ? WHERE id = ?`
+  ).run(req.session.user.id, req.session.user.username, action.id);
+
+  bot
+    .notifyModerationRevoked(action, target ? target.username : action.target_user_id, req.session.user.username)
+    .catch(() => {});
+
+  const updated = db.prepare(`SELECT * FROM moderation_actions WHERE id = ?`).get(action.id);
+  res.json({ ok: true, action: updated });
+});
+
 router.post("/:id/moderate", requireStaff, async (req, res) => {
   const type = req.body.type;
   if (!ACTION_TYPES.includes(type)) return res.status(400).json({ error: "Unknown action type." });
 
-  const target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.params.id);
+  let target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.params.id);
+  if (!target && bot.isRealDiscordId(req.params.id)) {
+    db.prepare(
+      `INSERT INTO users (id, username, avatar, is_staff, staff_rank, is_placeholder) VALUES (?, ?, ?, 0, NULL, 1)`
+    ).run(req.params.id, "Unlinked Player", "?");
+    target = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.params.id);
+  }
   if (!target) return res.status(404).json({ error: "Unknown player." });
 
   const reason = (req.body.reason || "").trim();

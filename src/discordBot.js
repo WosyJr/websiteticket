@@ -1,4 +1,3 @@
-
 const db = require("./db");
 
 const API = "https://discord.com/api/v10";
@@ -29,7 +28,7 @@ async function discordRequest(path, options = {}) {
         const parsed = JSON.parse(body);
         message = parsed.message || body;
       } catch {
-        /* not JSON, use raw body */
+        message = body;
       }
       console.warn(`[discordBot] ${options.method || "GET"} ${path} -> ${res.status} ${body}`);
       return { ok: false, status: res.status, error: message || `Discord returned ${res.status}` };
@@ -42,7 +41,6 @@ async function discordRequest(path, options = {}) {
     return { ok: false, status: 0, error: err.message };
   }
 }
-
 
 function isRealDiscordId(id) {
   return typeof id === "string" && /^\d{15,25}$/.test(id);
@@ -82,7 +80,6 @@ function playerUrl(id) {
   return `${base}/staff/players/${id}`;
 }
 
-
 const COLOR = {
   opened: 0xc9822e,
   reply: 0x5865f2,
@@ -96,9 +93,9 @@ const COLOR = {
   kick: 0xda373c,
   ban: 0x8b1e1e,
   role: 0x5865f2,
+  mention: 0x5865f2,
 };
 const FOOTER = { text: "Keizaal Online" };
-
 
 function field(name, value, inline = true) {
   return value ? { name, value: String(value), inline } : null;
@@ -120,8 +117,6 @@ function embed({ color, title, description, fields, thumbnail }) {
 function ticketFields(ticket) {
   return [field("Category", ticket.category_label), field("Ticket", `[#${ticket.id}](${ticketUrl(ticket.id)})`)];
 }
-
-
 
 async function notifyTicketOpened(ticket, reporterName) {
   await logToChannel(
@@ -214,7 +209,6 @@ async function notifyParticipantAdded(ticket, staffName, addedName) {
   );
 }
 
-
 const ACTION_LABEL = { warn: "Warning", timeout: "Timeout", kick: "Kick", ban: "Ban", role: "Role" };
 const ACTION_VERB = { warn: "warned", timeout: "timed out", kick: "kicked", ban: "banned", role: "given a role" };
 
@@ -293,11 +287,62 @@ async function notifyModeration(action, targetName) {
   }
 }
 
+async function applyModerationRevoke(action) {
+  const { type, target_user_id, role_id } = action;
+  const guild = guildId();
+  if (type === "warn" || type === "kick") return { ok: true };
+  if (!isRealDiscordId(target_user_id)) return { ok: true };
+  if (!guild) return { ok: false, error: "DISCORD_GUILD_ID isn't set -- add it to .env first." };
+
+  if (type === "timeout") {
+    const result = await discordRequest(`/guilds/${guild}/members/${target_user_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ communication_disabled_until: null }),
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  if (type === "ban") {
+    const result = await discordRequest(`/guilds/${guild}/bans/${target_user_id}`, { method: "DELETE" });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  if (type === "role") {
+    if (!role_id) return { ok: true };
+    const result = await discordRequest(`/guilds/${guild}/members/${target_user_id}/roles/${role_id}`, {
+      method: "DELETE",
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
+
+async function notifyModerationRevoked(action, targetName, revokedByName) {
+  await logToChannel(
+    embed({
+      color: COLOR[action.type] || COLOR.mention,
+      title: `${ACTION_LABEL[action.type]} Revoked`,
+      description: `**${targetName}**'s ${ACTION_LABEL[action.type].toLowerCase()} was revoked`,
+      fields: [field("Revoked by", revokedByName), field("Original reason", action.reason, false)],
+    })
+  );
+}
+
 function formatDuration(minutes) {
   if (!minutes) return null;
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
   if (minutes < 1440) return `${Math.round(minutes / 60)} hour${Math.round(minutes / 60) === 1 ? "" : "s"}`;
   return `${Math.round(minutes / 1440)} day${Math.round(minutes / 1440) === 1 ? "" : "s"}`;
+}
+
+async function notifyMention(ticket, fromStaffName, toUserId, messageExcerpt) {
+  await dmUser(
+    toUserId,
+    embed({
+      color: COLOR.mention,
+      title: "You were mentioned on a ticket",
+      description: `**${fromStaffName}** mentioned you on ticket **#${ticket.id}** -- ${ticket.subject}\n\n[View ticket](${ticketUrl(ticket.id)})`,
+      fields: [field("Message", messageExcerpt, false)],
+    })
+  );
 }
 
 module.exports = {
@@ -311,7 +356,10 @@ module.exports = {
   notifyDecision,
   notifyParticipantAdded,
   applyModerationAction,
+  applyModerationRevoke,
   notifyModeration,
+  notifyModerationRevoked,
+  notifyMention,
   ticketUrl,
   playerUrl,
 };

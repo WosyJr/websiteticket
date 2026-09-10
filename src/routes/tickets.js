@@ -77,11 +77,11 @@ function categoryLabel(type, realm) {
 }
 
 const SUBJECT_ANSWER_INDEX = {
-  player_report: 3, // "What rules were broken?"
-  item_restoration: 5, // "What do you need restored?"
-  general: 1, // "How can we help?"
-  staff_report: 1, // "What happened?"
-  bug_report: 1, // "What happened, and how can we reproduce it?"
+  player_report: 3,
+  item_restoration: 5,
+  general: 1,
+  staff_report: 1,
+  bug_report: 1,
 };
 
 function truncate(str, max) {
@@ -125,6 +125,7 @@ function resolveReportedPlayer(ticket) {
   if (!user && name) user = db.prepare(`SELECT * FROM users WHERE character_name = ? COLLATE NOCASE`).get(name);
   return { typedName: name || null, typedId: charId || null, user: user || null };
 }
+
 const insertParticipant = db.prepare(`
   INSERT OR IGNORE INTO ticket_participants (ticket_id, user_id, role) VALUES (?, ?, ?)
 `);
@@ -185,7 +186,7 @@ router.post("/", requireLogin, (req, res) => {
     info.lastInsertRowid,
     req.session.user.id,
     1,
-    "Ticket opened | See the submitted form above for details."
+    "Ticket opened -- see the submitted form above for details."
   );
   bot
     .notifyTicketOpened(
@@ -243,6 +244,14 @@ router.get("/:id", requireLogin, (req, res) => {
   res.json(ticket);
 });
 
+function extractMentions(body) {
+  const names = new Set();
+  const re = /@([A-Za-z0-9_.]{2,32})/g;
+  let m;
+  while ((m = re.exec(body))) names.add(m[1]);
+  return [...names];
+}
+
 router.post("/:id/messages", requireLogin, (req, res) => {
   const ticket = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(req.params.id);
   if (!ticket) return res.status(404).json({ error: "Not found." });
@@ -258,6 +267,27 @@ router.post("/:id/messages", requireLogin, (req, res) => {
   if (user.is_staff && visible) {
     bot.notifyReply(ticket, user.username, ticket.reporter_id).catch(() => {});
   }
+
+  if (user.is_staff) {
+    let mentionIds = Array.isArray(req.body.mentions) ? req.body.mentions : [];
+    if (!mentionIds.length) {
+      const names = extractMentions(body);
+      if (names.length) {
+        const placeholders = names.map(() => "?").join(",");
+        mentionIds = db
+          .prepare(`SELECT id FROM users WHERE is_staff = 1 AND username IN (${placeholders})`)
+          .all(...names)
+          .map((r) => r.id);
+      }
+    }
+    for (const mentionId of new Set(mentionIds)) {
+      if (mentionId === user.id) continue;
+      const mentionedUser = db.prepare(`SELECT id FROM users WHERE id = ? AND is_staff = 1`).get(mentionId);
+      if (!mentionedUser) continue;
+      bot.notifyMention(ticket, user.username, mentionedUser.id, body.slice(0, 200)).catch(() => {});
+    }
+  }
+
   respond(req, res, { ok: true });
 });
 

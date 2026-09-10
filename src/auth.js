@@ -1,11 +1,12 @@
 const db = require("./db");
 
 const upsertUser = db.prepare(`
-  INSERT INTO users (id, username, avatar, is_staff, staff_rank, joined_at)
-  VALUES (@id, @username, @avatar, @is_staff, @staff_rank, @joined_at)
+  INSERT INTO users (id, username, avatar, is_staff, staff_rank, joined_at, is_placeholder)
+  VALUES (@id, @username, @avatar, @is_staff, @staff_rank, @joined_at, 0)
   ON CONFLICT(id) DO UPDATE SET username=excluded.username, avatar=excluded.avatar,
     is_staff=excluded.is_staff, staff_rank=excluded.staff_rank,
-    joined_at=COALESCE(excluded.joined_at, users.joined_at)
+    joined_at=COALESCE(excluded.joined_at, users.joined_at),
+    is_placeholder=0
 `);
 
 function roleMap() {
@@ -15,7 +16,6 @@ function roleMap() {
     return {};
   }
 }
-
 
 async function lookupStaffRank(discordUserId) {
   const botToken = process.env.DISCORD_BOT_TOKEN;
@@ -93,4 +93,11 @@ function requireStaff(req, res, next) {
   next();
 }
 
-module.exports = { completeDiscordLogin, requireLogin, requireStaff, upsertUser };
+function requireManagement(req, res, next) {
+  if (!req.session.user) return res.redirect("/login");
+  if (!req.session.user.is_staff) return res.status(403).send("Staff access only.");
+  if (!db.isManagement(req.session.user)) return res.status(403).send("Management access only.");
+  next();
+}
+
+module.exports = { completeDiscordLogin, requireLogin, requireStaff, requireManagement, upsertUser };

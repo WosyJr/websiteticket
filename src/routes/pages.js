@@ -1,7 +1,8 @@
 const express = require("express");
 const db = require("../db");
-const { requireLogin, requireStaff } = require("../auth");
+const { requireLogin, requireStaff, requireManagement } = require("../auth");
 const { QUESTIONS_BY_TYPE, TYPE_LABEL, APPLICATION_TYPES, getTicketFull, resolveReportedPlayer } = require("./tickets");
+const bot = require("../discordBot");
 const richtext = require("../lib/richtext");
 
 const router = express.Router();
@@ -59,11 +60,19 @@ function playerSummary(userRow) {
       `SELECT * FROM moderation_actions WHERE target_user_id = ? ORDER BY created_at DESC, id DESC`
     )
     .all(userRow.id);
+  const activeActions = modActions.filter((a) => !a.revoked_at);
   const ticketCount = db.prepare(`SELECT COUNT(*) as c FROM tickets WHERE reporter_id = ?`).get(userRow.id).c;
   let priorActionsLabel = "None";
-  if (modActions.length === 1) priorActionsLabel = `1 ${modActions[0].type}`;
-  else if (modActions.length > 1) priorActionsLabel = `${modActions.length} actions`;
+  if (activeActions.length === 1) priorActionsLabel = `1 ${activeActions[0].type}`;
+  else if (activeActions.length > 1) priorActionsLabel = `${activeActions.length} actions`;
   return { user: userRow, modActions, ticketCount, priorActionsLabel };
+}
+
+function createPlaceholderUser(discordId) {
+  db.prepare(
+    `INSERT INTO users (id, username, avatar, is_staff, staff_rank, is_placeholder) VALUES (?, ?, ?, 0, NULL, 1)`
+  ).run(discordId, "Unlinked Player", "?");
+  return db.prepare(`SELECT * FROM users WHERE id = ?`).get(discordId);
 }
 
 router.get("/", (req, res) => {
@@ -155,7 +164,14 @@ router.get("/staff/tickets/:id", requireStaff, (req, res) => {
   if (!ticket) return res.status(404).send("Ticket not found.");
 
   const reportedPlayer = resolveReportedPlayer(ticket);
-  const target = reportedPlayer && reportedPlayer.user ? reportedPlayer.user : ticket.reporter;
+  const rawId = (req.query.target_discord_id || "").trim();
+  let overrideTarget = null;
+  let overrideApplied = false;
+  if (rawId && bot.isRealDiscordId(rawId)) {
+    overrideTarget = db.prepare(`SELECT * FROM users WHERE id = ?`).get(rawId) || createPlaceholderUser(rawId);
+    overrideApplied = true;
+  }
+  const target = overrideTarget || (reportedPlayer && reportedPlayer.user ? reportedPlayer.user : ticket.reporter);
   const targetSummary = playerSummary(target);
   const roleOptions = db.getModerationRoleOptions();
 
@@ -167,7 +183,15 @@ router.get("/staff/tickets/:id", requireStaff, (req, res) => {
     target,
     targetSummary,
     roleOptions,
+    overrideApplied,
   });
+});
+
+router.get("/staff/players/lookup", requireStaff, (req, res) => {
+  const id = (req.query.discord_id || "").trim();
+  if (!bot.isRealDiscordId(id)) return res.redirect("/staff/players");
+  if (!db.prepare(`SELECT id FROM users WHERE id = ?`).get(id)) createPlaceholderUser(id);
+  res.redirect(`/staff/players/${id}`);
 });
 
 router.get("/staff/players", requireStaff, (req, res) => {
@@ -175,7 +199,7 @@ router.get("/staff/players", requireStaff, (req, res) => {
   let sql = `
     SELECT u.*,
       (SELECT COUNT(*) FROM tickets t WHERE t.reporter_id = u.id) as ticket_count,
-      (SELECT COUNT(*) FROM moderation_actions m WHERE m.target_user_id = u.id) as action_count
+      (SELECT COUNT(*) FROM moderation_actions m WHERE m.target_user_id = u.id AND m.revoked_at IS NULL) as action_count
     FROM users u WHERE 1=1`;
   const params = [];
   if (q) {
@@ -184,7 +208,8 @@ router.get("/staff/players", requireStaff, (req, res) => {
   }
   sql += ` ORDER BY u.created_at DESC`;
   const players = db.prepare(sql).all(...params);
-  res.render("staff-players", { user: req.session.user, players, q });
+  const rawIdCandidate = q && bot.isRealDiscordId(q) && !players.some((p) => p.id === q) ? q : null;
+  res.render("staff-players", { user: req.session.user, players, q, rawIdCandidate });
 });
 
 router.get("/staff/players/:id", requireStaff, (req, res) => {
@@ -248,7 +273,27 @@ router.get("/staff/kb/article/:id", requireStaff, (req, res) => {
   res.render("staff-kb-article", { user: req.session.user, article, comments });
 });
 
-router.get("/staff/settings", requireStaff, (req, res) => {
+router.get("/staff/management", requireManagement, (req, res) => {
+  const staff = db
+    .prepare(
+      `SELECT u.*,
+         (SELECT COUNT(*) FROM moderation_actions m WHERE m.staff_id = u.id) as actions_taken,
+         (SELECT COUNT(*) FROM tickets t WHERE t.claimed_by = u.id AND t.status = 'closed') as tickets_closed,
+         (SELECT COUNT(*) FROM tickets t WHERE t.claimed_by = u.id AND t.status != 'closed') as tickets_open
+       FROM users u WHERE u.is_staff = 1 ORDER BY u.staff_rank, u.username`
+    )
+    .all();
+  const recentActions = db
+    .prepare(
+      `SELECT m.*, tu.username as target_name
+       FROM moderation_actions m LEFT JOIN users tu ON tu.id = m.target_user_id
+       ORDER BY m.created_at DESC, m.id DESC LIMIT 30`
+    )
+    .all();
+  res.render("staff-management", { user: req.session.user, staff, recentActions });
+});
+
+router.get("/staff/settings", requireManagement, (req, res) => {
   res.render("staff-settings", {
     user: req.session.user,
     settings: db.getAllSettings(),
@@ -256,7 +301,7 @@ router.get("/staff/settings", requireStaff, (req, res) => {
   });
 });
 
-router.post("/staff/settings", requireStaff, (req, res) => {
+router.post("/staff/settings", requireManagement, (req, res) => {
   db.setSetting("dm_on_reply", req.body.dm_on_reply ? "1" : "0");
   db.setSetting("dm_on_close", req.body.dm_on_close ? "1" : "0");
   db.setSetting("log_enabled", req.body.log_enabled ? "1" : "0");
